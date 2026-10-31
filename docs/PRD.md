@@ -202,6 +202,42 @@ About three working days remain.
 - [ ] Solo or team? Every member must be added on the submission.
 - [ ] Is the cutoff exactly Wednesday 9 PM ET?
 
+## How we improve it further (post-v3 plan)
+
+v3 made the vocabulary broad (ten actions, all verified in the simulator). Breadth is not
+yet proof. The plan below is ordered by what most raises the judged score per hour spent,
+and every item has an exit check. Nothing here is claimed until its check passes.
+
+**P0: prove the new actions end to end (before anything else)**
+
+| # | Improvement | Why it matters | Exit check |
+| --- | --- | --- | --- |
+| 1 | Generate the five new clips (`cup_pour`, `bowl_stir`, `book_push_aside`, `bar_cut`, `lamp_press`) and run `eval-demo` + `eval-replay` on them | Five scenes are "not yet evaluated"; a results row with real numbers is the difference between a claim and a demo | README results table filled from the eval output, failures included |
+| 2 | Add the six new actions to the StepRow action dropdown in the web app | Learned steps display today, but a user editing a program cannot pick `pour`/`stir`/`cut`/`press`/`push`/`place_near` by hand | A user can build a pour step in the UI and run it |
+| 3 | Fix the container-push physics (book ends tipped against the tray rim; verify is XY-only) | A judge watching the sim sees a flipped book, not a placed one | Pushed object rests flat on the tray floor; verify also checks it is upright |
+| 4 | Test one real phone clip end to end | Everything so far is synthetic or AI-generated footage; the PRD's own top risk | One real clip either passes or its failure is written into Risks with a cause |
+
+**P1: make the differentiators visible**
+
+| # | Improvement | Why it matters | Exit check |
+| --- | --- | --- | --- |
+| 5 | Ship the why-SAM comparison (FR17): color-threshold baseline that fails on dim light or similar colors | The sharpest skeptical-judge question, still unanswered with evidence | Side-by-side clip in the demo; baseline failure shown, SAM tracking kept |
+| 6 | Close FR16 properly: SAM segments the final sim frame and one corrective retry runs on a miss | v3 verify is simulator ground truth, which a judge can call circular | A staged miss is caught by SAM (not ground truth) and corrected on screen |
+| 7 | Hero the Ask moment: one ambiguity case (color vs size) where the answer visibly changes the action list | Ask is the stated differentiator from other video-to-robot entries | The divergence log and the changed action are both on screen in the demo take |
+| 8 | Record backup takes and run each demo task 10x before filming | Reliability beats breadth in a 3-minute video | 10/10 (or the honest count) per demo task logged in `runs/` |
+
+**P2: depth after the score is safe**
+
+| # | Improvement | Why it matters | Exit check |
+| --- | --- | --- | --- |
+| 9 | Contents with amounts (partial pours, "half the cup") | Today's contents disc is all-or-nothing; amounts unlock real recipes | A partial pour verifies at the stated fraction |
+| 10 | Chained processes in one program (pour, then stir the same bowl) | Real tasks compose actions; today each is demoed alone | One learned program pours then stirs and both verifies pass |
+| 11 | Selectors/macros (`sort`, "every red block") and an `unknown` -> question path | The two items v3 explicitly deferred; they turn ten verbs into a language | Its own design doc first, then the same TDD treatment as v3 |
+| 12 | One-slide path to a real arm (same task program, real Panda or arm API) | Answers the "simulation-only" theme question with a plan, not a promise | The slide names the exact program JSON and the three sim-only assumptions to replace |
+
+Rule for all of the above: update the README results table and this PRD in the same commit
+as the code. A feature that is not in the results table does not exist for a judge.
+
 ## Sources
 
 - [Meta Model API models page](https://dev.meta.ai/docs/models): model ids, SAM 3.1 and Muse Spark capabilities.
