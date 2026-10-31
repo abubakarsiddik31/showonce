@@ -182,3 +182,23 @@ def test_cut_divides_the_bar_and_refuses_a_ball() -> None:
     bad = TaskProgram(name="t2", steps=[Step(object="gray knife", action="cut", target="red ball")])
     with pytest.raises(ExecutionError, match="round"):
         execute(bad, build_world(ball_layout, bad), PandaController(build_world(ball_layout, bad)), [])
+
+
+@needs_panda
+def test_press_latches_the_lamp_down() -> None:
+    lamp = ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True)
+    layout = Layout({"orange lamp": (0.45, 0.0)}, [], {"orange lamp": lamp})
+    program = TaskProgram(name="t", steps=[Step(object="orange lamp", action="press", target="orange lamp")])
+    world = build_world(layout, program)
+    execute(program, world, PandaController(world), [])
+    assert all(c.ok for c in verify(program, world, []))
+
+
+@needs_panda
+def test_press_refuses_something_without_a_button() -> None:
+    mug = ObjectProfile(shape="cylinder", width=0.064, depth=0.064, height=0.08, handle=True)
+    layout = Layout({"red mug": (0.45, 0.0)}, [], {"red mug": mug})
+    bad = TaskProgram(name="t", steps=[Step(object="red mug", action="press", target="red mug")])
+    world = build_world(layout, bad)
+    with pytest.raises(ExecutionError, match="press"):
+        execute(bad, world, PandaController(world), [])

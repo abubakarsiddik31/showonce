@@ -11,7 +11,7 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
-from showonce.sim.controller import PandaController
+from showonce.sim.controller import CLOSED, PandaController
 from showonce.sim.scene import STRIP_HALF, STRIP_TAIL, TRAY_FLOOR, SimWorld, strip_offset
 
 XY = tuple[float, float]
@@ -272,3 +272,13 @@ def cut(
     controller.move_to(np.array([centre[0], centre[1] + y, z]))  # one pass, edge to edge
     world.split(target)
     controller.release(knife, knife_at + np.array([0.0, 0.0, 0.002]))
+
+
+def press(world: SimWorld, controller: PandaController, target: str, at: Vec) -> None:
+    """Push straight down on a button with the closed fingertips, hold, and back off."""
+    controller.set_gripper(CLOSED, steps=60)
+    controller.move_to(at + np.array([0.0, 0.0, 0.08]))
+    controller.move_to(at + np.array([0.0, 0.0, 0.004]))
+    world.press(target)
+    controller.dwell(60)  # a firm moment on the button
+    controller.move_to(at + np.array([0.0, 0.0, 0.08]))

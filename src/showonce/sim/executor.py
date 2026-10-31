@@ -13,7 +13,7 @@ from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
-from showonce.sim.skills import cut, free_spot, open_package, pour, stir, wipe
+from showonce.sim.skills import cut, free_spot, open_package, pour, press, stir, wipe
 
 SLOT_MARGIN = 0.004  # clearance between a placed object and the rim
 # Where objects go in a container, as fractions of the free half-width: corners, then center.
@@ -162,6 +162,13 @@ def execute(
             open_package(
                 world, controller, step.object, (float(bag[0]), float(bag[1])), others, keep_out
             )
+            if on_step_done is not None:
+                on_step_done(index, str(step))
+            continue
+        if step.action == "press":
+            if not world.shape(step.object).pressable:
+                raise ExecutionError(f"'{step.object}' has no button to press")
+            press(world, controller, step.object, where(step.object))
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
@@ -410,6 +417,9 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
         elif step.action == "cut":
             ok = world.is_split(step.target)
             checks.append(StepCheck(str(step), bool(ok), "in two halves" if ok else "still whole"))
+        elif step.action == "press":
+            ok = world.is_pressed(step.object)
+            checks.append(StepCheck(str(step), bool(ok), "pressed" if ok else "unpressed"))
         else:
             below = world.block_pos(step.target)
             xy = float(((pos[0] - below[0]) ** 2 + (pos[1] - below[1]) ** 2) ** 0.5)
