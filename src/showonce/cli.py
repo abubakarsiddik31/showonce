@@ -76,7 +76,7 @@ def moves(
     from showonce.perception.pipeline import extract_moves
 
     with MetaClient(get_settings()) as client:
-        found = extract_moves(client, video, labels)
+        found = extract_moves(client, video, {label: label for label in labels})
     table = Table(title=f"Moves in {video.name}")
     for column in ("#", "object", "from (px)", "to (px)", "frames"):
         table.add_column(column)
@@ -99,7 +99,7 @@ def eval_moves(
 ) -> None:
     """Score move detection on every clip in a directory that has a ground-truth json."""
     import json
-    from dataclasses import asdict, replace
+    from dataclasses import asdict
 
     from showonce.evaluate import load_truth, score_moves
     from showonce.perception.pipeline import extract_moves
@@ -110,11 +110,7 @@ def eval_moves(
         for truth_path in sorted(directory.glob("*.json")):
             video = truth_path.with_suffix(".mp4")
             truth = load_truth(truth_path)
-            prompt_to_name = {p: n for n, p in truth["prompts"].items()}
-            found = [
-                replace(m, label=prompt_to_name[m.label])
-                for m in extract_moves(client, video, list(prompt_to_name))
-            ]
+            found = extract_moves(client, video, truth["prompts"])
             scores.append(score_moves(truth["name"], truth, found))
             console.print(f"scored {truth['name']}")
     table = Table(title="Move detection vs ground truth")
@@ -156,3 +152,90 @@ def sim_test(
     console.print(f"{sum(r.ok for r in results)}/{len(results)} stacks succeeded")
     if not all(r.ok for r in results):
         raise typer.Exit(code=1)
+
+
+@app.command()
+def demo(
+    video: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Demo clip.")],
+    scene: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Scene json.")],
+    out: Annotated[Path | None, typer.Option(help="Output folder (default runs/<name>).")] = None,
+) -> None:
+    """Learn a task from a clip, then have the simulated Panda do it."""
+    from showonce.demo import learn_from_video, run_in_sim
+    from showonce.scene_spec import SceneSpec
+
+    settings = get_settings()
+    spec = SceneSpec.load(scene)
+    folder = out or settings.runs_dir / spec.name
+    with MetaClient(settings) as client:
+        learned = learn_from_video(client, video, spec)
+    console.print("[bold]Learned program[/bold]")
+    for i, step in enumerate(learned.program.steps, 1):
+        console.print(f"  {i}. {step}")
+    learned.program.save(folder / "program.json")
+    result = run_in_sim(learned.program, learned.layout, folder / "sim.mp4")
+    table = Table(title="Robot result (simulator ground truth)")
+    for column in ("step", "ok", "detail"):
+        table.add_column(column)
+    for check in result.checks:
+        table.add_row(check.step, "yes" if check.ok else "NO", check.detail)
+    console.print(table)
+    console.print(f"saved {folder / 'program.json'} and {folder / 'sim.mp4'}")
+    if not result.success:
+        raise typer.Exit(code=1)
+
+
+@app.command("eval-demo")
+def eval_demo(
+    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)] = Path(
+        "samples/synthetic"
+    ),
+) -> None:
+    """Run video -> program -> robot on every clip with a ground-truth json and score it."""
+    import json
+    from dataclasses import asdict, dataclass
+
+    from showonce.demo import learn_from_video, run_in_sim
+    from showonce.evaluate import load_truth
+    from showonce.learn import LearnError
+    from showonce.scene_spec import SceneSpec
+
+    @dataclass
+    class Row:
+        clip: str
+        program_ok: bool
+        robot_ok: bool
+        note: str = ""
+
+    settings = get_settings()
+    rows: list[Row] = []
+    with MetaClient(settings) as client:
+        for truth_path in sorted(directory.glob("*.json")):
+            truth = load_truth(truth_path)
+            spec = SceneSpec.load(truth_path)
+            try:
+                learned = learn_from_video(client, truth_path.with_suffix(".mp4"), spec)
+            except LearnError as exc:
+                rows.append(Row(truth["name"], False, False, str(exc)))
+                continue
+            expected = [(s["object"], s["action"], s["target"]) for s in truth["steps"]]
+            got = [(s.object, s.action, s.target) for s in learned.program.steps]
+            result = run_in_sim(learned.program, learned.layout)
+            rows.append(Row(truth["name"], got == expected, result.success))
+            console.print(f"ran {truth['name']}")
+    table = Table(title="Video to robot, all clips")
+    for column in ("clip", "program correct", "robot succeeded", "note"):
+        table.add_column(column)
+    for r in rows:
+        table.add_row(
+            r.clip, "yes" if r.program_ok else "NO", "yes" if r.robot_ok else "NO", r.note
+        )
+    console.print(table)
+    console.print(
+        f"program {sum(r.program_ok for r in rows)}/{len(rows)}, "
+        f"robot {sum(r.robot_ok for r in rows)}/{len(rows)}"
+    )
+    settings.runs_dir.mkdir(parents=True, exist_ok=True)
+    (settings.runs_dir / "eval_demo.json").write_text(
+        json.dumps([asdict(r) for r in rows], indent=2)
+    )

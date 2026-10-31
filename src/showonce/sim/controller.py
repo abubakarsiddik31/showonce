@@ -14,6 +14,7 @@ Vec = NDArray[np.float64]
 
 HOVER = 0.14  # height of the gripper center above the grasp/place height while travelling
 OPEN, CLOSED = 255.0, 0.0
+Q_PARK = np.array([1.6, -0.2, 0.0, -2.2, 0.0, 2.0, 0.8])  # arm folded to the side, off the table
 
 
 class IKError(RuntimeError):
@@ -114,6 +115,11 @@ class PandaController:
     def go_home(self) -> None:
         self.world.data.ctrl[:7] = self.q_home
         self._settle(self.q_home, max_steps=1200)
+
+    def park(self) -> None:
+        """Swing the arm out of the top camera's view."""
+        self.world.data.ctrl[:7] = Q_PARK
+        self._settle(Q_PARK, max_steps=2000)
 
     # -- grasping ------------------------------------------------------------------------
 

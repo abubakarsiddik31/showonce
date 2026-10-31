@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,10 +10,34 @@ import mujoco
 import numpy as np
 from numpy.typing import NDArray
 
+from showonce.geometry import WORK_CENTER_X, WORK_WIDTH_Y
+
 DEFAULT_ASSET_DIR = Path("assets/mujoco_menagerie/franka_emika_panda")
 BLOCK_HALF = 0.02  # 4 cm cubes
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
+CAMERA_HEIGHT = 0.9
+CAMERA_ASPECT = 16 / 9  # render size must keep this aspect for the calibration to hold
+CAMERA_FOVY_DEG = math.degrees(2 * math.atan(WORK_WIDTH_Y / 2 / CAMERA_ASPECT / CAMERA_HEIGHT))
+
+_COLORS: dict[str, tuple[float, float, float, float]] = {
+    "red": (0.85, 0.2, 0.2, 1),
+    "green": (0.2, 0.7, 0.3, 1),
+    "blue": (0.2, 0.4, 0.85, 1),
+    "yellow": (0.95, 0.8, 0.2, 1),
+    "orange": (0.95, 0.55, 0.15, 1),
+    "purple": (0.55, 0.3, 0.75, 1),
+    "pink": (0.95, 0.5, 0.7, 1),
+    "white": (0.95, 0.95, 0.95, 1),
+}
+
+
+def block_def(name: str) -> BlockDef:
+    """Build a block from its name, picking the color word it contains (default grey)."""
+    for word, rgba in _COLORS.items():
+        if word in name.lower():
+            return BlockDef(name, rgba)
+    return BlockDef(name, (0.5, 0.5, 0.5, 1))
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,14 +86,16 @@ class SimWorld:
     @staticmethod
     def _build_scene(spec: mujoco.MjSpec, blocks: list[BlockDef], zones: list[ZoneDef]) -> None:
         world = spec.worldbody
-        spec.visual.headlight.ambient = [0.25, 0.25, 0.25]
-        spec.visual.headlight.diffuse = [0.3, 0.3, 0.3]
+        spec.visual.global_.offwidth = 1920
+        spec.visual.global_.offheight = 1080
+        spec.visual.headlight.ambient = [0.2, 0.2, 0.2]
+        spec.visual.headlight.diffuse = [0.15, 0.15, 0.15]
         spec.visual.headlight.specular = [0.0, 0.0, 0.0]
         world.add_light(
             pos=[0.4, 0, 1.5],
             dir=[0, 0, -1],
             type=mujoco.mjtLightType.mjLIGHT_DIRECTIONAL,
-            diffuse=[0.45, 0.45, 0.45],
+            diffuse=[0.35, 0.35, 0.35],
             specular=[0.0, 0.0, 0.0],
         )
         table = world.add_geom(
@@ -76,7 +103,7 @@ class SimWorld:
             type=mujoco.mjtGeom.mjGEOM_BOX,
             pos=[0.45, 0.0, -0.025],
             size=[0.5, 0.55, 0.025],
-            rgba=[0.62, 0.66, 0.72, 1],
+            rgba=[0.74, 0.64, 0.52, 1],
             friction=[1.0, 0.005, 0.0001],
         )
         assert table is not None
@@ -115,9 +142,9 @@ class SimWorld:
             eq.active = False
         world.add_camera(
             name=CAMERA_NAME,
-            pos=[0.45, 0.0, 1.0],
-            xyaxes=[1, 0, 0, 0, 1, 0],
-            fovy=50,
+            pos=[WORK_CENTER_X, 0.0, CAMERA_HEIGHT],
+            xyaxes=[0, -1, 0, 1, 0, 0],  # image right is world -y, image up is world +x
+            fovy=CAMERA_FOVY_DEG,
         )
 
     # -- state ---------------------------------------------------------------------------

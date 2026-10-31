@@ -48,7 +48,7 @@ class Calibration:
         return cls(image_corners, table_corners)
 
     @staticmethod
-    def _apply(matrix: np.ndarray, point: Point) -> Point:  # type: ignore[type-arg]
+    def _apply(matrix: np.ndarray, point: Point) -> Point:
         out = cv2.perspectiveTransform(np.array([[point]], dtype=np.float32), matrix)
         return (float(out[0, 0, 0]), float(out[0, 0, 1]))
 

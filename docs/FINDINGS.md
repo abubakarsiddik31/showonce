@@ -2,6 +2,17 @@
 
 Measured results that shaped the design. Newest first.
 
+## 2026-10-31: video to program to robot, 8 of 8 synthetic clips
+
+`uv run showonce eval-demo` runs SAM 3.1, compiles a symbolic task program, and executes it on the simulated Panda. Success is checked from simulator ground truth.
+
+- **Program correct 8/8, robot succeeded 8/8.** Programs are compared with the ground-truth steps (object, action, target).
+- One real bug was found: in `stack_three_cups` the red cup sits on the blue cup, so both objects are at the same spot when the green cup arrives. Picking the nearest object chose the wrong target. The classifier now tracks stack height and stacks on the topmost object.
+- The simulated top camera and the demo video share one calibration, so pixel positions mean the same thing in both. The Panda must be parked out of view before the sim camera is read; that pose is `PandaController.park()`.
+- Whole 8-clip evaluation takes about 3 s when SAM results are cached. Muse Spark is not part of the pipeline yet.
+
+Not yet done: Muse Spark step plan and cross-check, replay on a shuffled layout through SAM on the sim camera frame, real footage.
+
 ## 2026-10-31: MuJoCo Panda stacks reliably
 
 `uv run showonce sim-test` stacks one block on another from random layouts.

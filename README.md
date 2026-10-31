@@ -25,6 +25,17 @@ cp .env.example .env   # then add your MODEL_API_KEY
 uv run showonce --help
 ```
 
+## Try it
+
+```bash
+./scripts/fetch_assets.sh                  # downloads the Panda model
+uv run showonce synth                      # renders 8 synthetic clips
+uv run showonce demo samples/synthetic/stack_red_on_blue_cups.mp4 \
+    --scene samples/synthetic/stack_red_on_blue_cups.json
+uv run showonce eval-demo                  # score video -> program -> robot on all clips
+uv run showonce sim-test                   # 10 random block stacks, no API needed
+```
+
 ## Development
 
 ```bash
@@ -52,6 +63,9 @@ src/showonce/
   cache.py         content-hash JSON cache
   cli.py           `showonce` command
   meta/            Meta Model API client and SAM output parser
+  geometry.py      pixel to table calibration
+  learn.py         moves to a symbolic task program
+  program.py       task program model (json)
   perception/      resting-state and move detection
   sim/             MuJoCo scene, controller, executor
   synth/           synthetic top-down demo clips with ground truth
