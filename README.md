@@ -61,11 +61,15 @@ in the simulator. These are AI-generated test clips, not real footage.
 | Clip | Steps learned | Read by | Seed 3 | Seed 7 |
 |---|---|---|---|---|
 | dishes_into_rack | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
-| fruit_into_bowl | 3 of 3 correct | motion | failed: SAM found no "orange block" | 3/3 steps |
+| fruit_into_bowl | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
 | toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
 
-SAM position error where it ran: 0.2 to 1.3 mm. Known weakness: the orange cube on the beige
-table is sometimes not found.
+SAM position error: 0.2 to 1.8 mm for the cubes, 0.7 to 3.7 mm for the mugs.
+
+The simulator models what the clip shows. Objects named "mug" or "cup" are real mugs (a 6.4 cm
+body with a handle, grasped by the body), and every container is a shallow rimmed tray sized
+from the box SAM found around it in the clip, so the dishes clip fills a 16.7 cm tray with
+three mugs. Anything else is a 4 cm cube. A first run of the mugs also passed on seeds 5 and 11.
 
 ## Development
 

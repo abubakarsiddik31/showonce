@@ -1,4 +1,4 @@
-"""MuJoCo tabletop scene: Franka Panda, table, colored blocks and a top-down camera."""
+"""MuJoCo tabletop scene: Franka Panda, table, colored objects, trays and a top-down camera."""
 
 from __future__ import annotations
 
@@ -14,6 +14,9 @@ from showonce.geometry import WORK_CENTER_X, WORK_WIDTH_Y
 
 DEFAULT_ASSET_DIR = Path("assets/mujoco_menagerie/franka_emika_panda")
 BLOCK_HALF = 0.02  # 4 cm cubes
+TRAY_FLOOR = 0.004  # thickness of a container's floor
+RIM_THICKNESS = 0.006
+RIM_HEIGHT = 0.012  # low enough that a mug handle clears it
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
 CAMERA_HEIGHT = 0.9
@@ -25,30 +28,50 @@ _COLORS: dict[str, tuple[float, float, float, float]] = {
     "green": (0.2, 0.7, 0.3, 1),
     "blue": (0.2, 0.4, 0.85, 1),
     "yellow": (0.95, 0.8, 0.2, 1),
-    "orange": (0.95, 0.55, 0.15, 1),
+    "orange": (0.92, 0.36, 0.05, 1),
     "purple": (0.55, 0.3, 0.75, 1),
     "pink": (0.95, 0.5, 0.7, 1),
     "white": (0.95, 0.95, 0.95, 1),
 }
 
 
-def block_def(name: str) -> BlockDef:
-    """Build a block from its name, picking the color word it contains (default grey)."""
-    for word, rgba in _COLORS.items():
-        if word in name.lower():
-            return BlockDef(name, rgba)
-    return BlockDef(name, (0.5, 0.5, 0.5, 1))
+@dataclass(frozen=True, slots=True)
+class Shape:
+    """Physical size of an object kind, in meters."""
+
+    kind: str
+    half_height: float  # center height above the surface it rests on
+    radius: float  # footprint radius of the body alone
+    footprint: float  # footprint radius including any handle
+    bbox_offset: tuple[float, float] = (0.0, 0.0)  # top-camera box center minus body center
+
+
+CUBE = Shape("cube", BLOCK_HALF, BLOCK_HALF, BLOCK_HALF)
+# The handle sits on +y: the gripper closes along x, so it never touches the handle.
+MUG_RADIUS, MUG_HALF, HANDLE_REACH = 0.032, 0.04, 0.016
+MUG = Shape("mug", MUG_HALF, MUG_RADIUS, MUG_RADIUS + HANDLE_REACH, (0.0, HANDLE_REACH / 2))
+_MUG_WORDS = ("mug", "cup")
 
 
 @dataclass(frozen=True, slots=True)
 class BlockDef:
     name: str
     rgba: tuple[float, float, float, float]
+    shape: Shape = CUBE
+
+
+def block_def(name: str) -> BlockDef:
+    """Build an object from its name: a mug for "mug"/"cup", else a cube; colour from the name."""
+    shape = MUG if any(word in name.lower() for word in _MUG_WORDS) else CUBE
+    for word, rgba in _COLORS.items():
+        if word in name.lower():
+            return BlockDef(name, rgba, shape)
+    return BlockDef(name, (0.5, 0.5, 0.5, 1), shape)
 
 
 @dataclass(frozen=True, slots=True)
 class ZoneDef:
-    """A flat, non-colliding target area drawn on the table."""
+    """A container on the table: a shallow tray with a low rim."""
 
     name: str
     center: tuple[float, float]
@@ -69,6 +92,7 @@ class SimWorld:
         if not panda_xml.exists():
             raise FileNotFoundError(f"{panda_xml} not found. Run scripts/fetch_assets.sh first.")
         self.block_names = [b.name for b in blocks]
+        self._shapes = {b.name: b.shape for b in blocks}
         spec = mujoco.MjSpec.from_file(str(panda_xml))
         self._build_scene(spec, blocks, zones or [])
         self.model = spec.compile()
@@ -108,30 +132,15 @@ class SimWorld:
         )
         assert table is not None
         for zone in zones:
-            world.add_geom(
-                name=f"zone_{zone.name}",
-                type=mujoco.mjtGeom.mjGEOM_BOX,
-                pos=[zone.center[0], zone.center[1], 0.0005],
-                size=[zone.size[0] / 2, zone.size[1] / 2, 0.0005],
-                rgba=list(zone.rgba),
-                contype=0,
-                conaffinity=0,
-            )
+            SimWorld._add_tray(world, zone)
         spec.body("hand").add_site(
             name="tcp", pos=[0, 0, TCP_OFFSET], size=[0.004, 0.004, 0.004], rgba=[1, 0, 0, 0.3]
         )
         for i, block in enumerate(blocks):
-            body = world.add_body(name=block.name, pos=[0.4, -0.3 + 0.1 * i, BLOCK_HALF])
+            start = [0.4, -0.3 + 0.1 * i, block.shape.half_height]
+            body = world.add_body(name=block.name, pos=start)
             body.add_freejoint()
-            body.add_geom(
-                name=f"{block.name}_geom",
-                type=mujoco.mjtGeom.mjGEOM_BOX,
-                size=[BLOCK_HALF] * 3,
-                rgba=list(block.rgba),
-                mass=0.05,
-                friction=[1.2, 0.01, 0.0005],
-                condim=4,
-            )
+            SimWorld._add_object_geoms(body, block)
             eq = spec.add_equality(
                 name=f"grasp_{block.name}",
                 type=mujoco.mjtEq.mjEQ_WELD,
@@ -147,14 +156,96 @@ class SimWorld:
             fovy=CAMERA_FOVY_DEG,
         )
 
+    @staticmethod
+    def _add_tray(world: mujoco.MjsBody, zone: ZoneDef) -> None:
+        """A floor plus a low rim. They collide with objects only, never with the arm."""
+        (cx, cy), (sx, sy) = zone.center, zone.size
+        rim_rgba = [min(1.0, c * 1.3) for c in zone.rgba[:3]] + [1.0]
+        common = {"type": mujoco.mjtGeom.mjGEOM_BOX, "contype": 2, "conaffinity": 0}
+        world.add_geom(
+            name=f"zone_{zone.name}",
+            pos=[cx, cy, TRAY_FLOOR / 2],
+            size=[sx / 2, sy / 2, TRAY_FLOOR / 2],
+            rgba=list(zone.rgba),
+            **common,
+        )
+        t, h = RIM_THICKNESS, RIM_HEIGHT
+        walls = (
+            ((cx + sx / 2 - t / 2, cy), (t / 2, sy / 2, h / 2)),
+            ((cx - sx / 2 + t / 2, cy), (t / 2, sy / 2, h / 2)),
+            ((cx, cy + sy / 2 - t / 2), (sx / 2 - t, t / 2, h / 2)),
+            ((cx, cy - sy / 2 + t / 2), (sx / 2 - t, t / 2, h / 2)),
+        )
+        for i, ((wx, wy), half) in enumerate(walls):
+            world.add_geom(
+                name=f"zone_{zone.name}_rim{i}",
+                pos=[wx, wy, TRAY_FLOOR + h / 2],
+                size=list(half),
+                rgba=rim_rgba,
+                **common,
+            )
+
+    @staticmethod
+    def _add_object_geoms(body: mujoco.MjsBody, block: BlockDef) -> None:
+        # Objects collide with the table (bit 1) and with trays (bit 2).
+        physics = {"mass": 0.05, "friction": [1.2, 0.01, 0.0005], "condim": 4, "conaffinity": 3}
+        if block.shape.kind == "cube":
+            body.add_geom(
+                name=f"{block.name}_geom",
+                type=mujoco.mjtGeom.mjGEOM_BOX,
+                size=[BLOCK_HALF] * 3,
+                rgba=list(block.rgba),
+                **physics,
+            )
+            return
+        body.add_geom(
+            name=f"{block.name}_geom",
+            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+            size=[MUG_RADIUS, MUG_HALF, 0],
+            rgba=list(block.rgba),
+            **physics,
+        )
+        visual = {"contype": 0, "conaffinity": 0, "mass": 0.001}
+        inside = [c * 0.6 for c in block.rgba[:3]] + [1.0]  # glazed interior, a shade darker
+        body.add_geom(
+            name=f"{block.name}_opening",
+            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+            pos=[0, 0, MUG_HALF],
+            size=[MUG_RADIUS - 0.004, 0.0008, 0],
+            rgba=inside,
+            **visual,
+        )
+        arm_z, r = 0.022, MUG_RADIUS
+        parts = (  # the handle: one upright bar and two short stubs, on +y
+            ((0, r + HANDLE_REACH - 0.004, 0), (0.004, 0.004, arm_z)),
+            ((0, r + HANDLE_REACH / 2 - 0.002, arm_z), (0.004, HANDLE_REACH / 2 + 0.002, 0.004)),
+            ((0, r + HANDLE_REACH / 2 - 0.002, -arm_z), (0.004, HANDLE_REACH / 2 + 0.002, 0.004)),
+        )
+        for i, (pos, half) in enumerate(parts):
+            body.add_geom(
+                name=f"{block.name}_handle{i}",
+                type=mujoco.mjtGeom.mjGEOM_BOX,
+                pos=list(pos),
+                size=list(half),
+                rgba=list(block.rgba),
+                **visual,
+            )
+
     # -- state ---------------------------------------------------------------------------
 
     def reset(self) -> None:
         mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
         mujoco.mj_forward(self.model, self.data)
 
-    def set_block(self, name: str, xy: tuple[float, float], z: float = BLOCK_HALF) -> None:
-        """Teleport a block (identity orientation, zero velocity)."""
+    def shape(self, name: str) -> Shape:
+        return self._shapes[name]
+
+    def half_height(self, name: str) -> float:
+        return self._shapes[name].half_height
+
+    def set_block(self, name: str, xy: tuple[float, float], z: float | None = None) -> None:
+        """Teleport an object upright onto the table (zero velocity); ``z`` is its center."""
+        z = self.half_height(name) if z is None else z
         joint = self.model.joint(int(self.model.body(name).jntadr[0]))
         adr = int(joint.qposadr[0])
         self.data.qpos[adr : adr + 7] = [xy[0], xy[1], z, 1, 0, 0, 0]

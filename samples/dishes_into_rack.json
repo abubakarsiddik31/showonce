@@ -10,11 +10,6 @@
     "blue mug": "blue mug",
     "green mug": "green mug"
   },
-  "sim_prompts": {
-    "red mug": "red block",
-    "blue mug": "blue block",
-    "green mug": "green block"
-  },
   "container_prompts": {
     "tray": "gray tray"
   },

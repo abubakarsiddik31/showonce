@@ -17,12 +17,14 @@ from showonce.sim.controller import PandaController
 from showonce.sim.executor import Layout, Region, StepCheck, build_world, execute, verify
 from showonce.sim.perceive import perceive_blocks
 from showonce.sim.record import SimRecorder
-from showonce.sim.scene import SimWorld
+from showonce.sim.scene import SimWorld, block_def
 
 XY = tuple[float, float]
-X_RANGE, Y_RANGE = (0.36, 0.58), (-0.22, 0.22)
+# Where object centers may go, before keeping their footprint inside the top camera's view.
+X_EDGE, Y_EDGE = (0.34, 0.60), (-0.24, 0.24)
 MIN_SEPARATION = 0.09
-REGION_MARGIN = 0.05
+SEPARATION_GAP = 0.01  # free space between two objects' footprints
+REGION_GAP = 0.03  # free space between an object's footprint and a container
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,27 +38,46 @@ class ReplayResult:
         return all(c.ok for c in self.checks)
 
 
-def shuffled_layout(names: list[str], regions: list[Region], seed: int) -> dict[str, XY]:
-    """Random object positions that do not overlap each other or any container."""
-    rng = random.Random(seed)
+def _place_all(
+    names: list[str], regions: list[Region], rng: random.Random, footprint: dict[str, float]
+) -> dict[str, XY] | None:
+    """One greedy attempt at a layout. None if some object has no free spot left."""
     placed: dict[str, XY] = {}
     for name in names:
-        for _ in range(1000):
-            candidate = (rng.uniform(*X_RANGE), rng.uniform(*Y_RANGE))
-            clear_of_objects = all(
-                math.dist(candidate, p) > MIN_SEPARATION for p in placed.values()
+        fp = footprint[name]
+        for _ in range(200):
+            candidate = (
+                rng.uniform(X_EDGE[0] + fp, X_EDGE[1] - fp),
+                rng.uniform(Y_EDGE[0] + fp, Y_EDGE[1] - fp),
             )
+            clear_of_objects = all(
+                math.dist(candidate, p)
+                > max(MIN_SEPARATION, fp + footprint[other] + SEPARATION_GAP)
+                for other, p in placed.items()
+            )
+            margin = fp + REGION_GAP
             clear_of_regions = all(
-                abs(candidate[0] - r.center[0]) > r.size[0] / 2 + REGION_MARGIN
-                or abs(candidate[1] - r.center[1]) > r.size[1] / 2 + REGION_MARGIN
+                abs(candidate[0] - r.center[0]) > r.size[0] / 2 + margin
+                or abs(candidate[1] - r.center[1]) > r.size[1] / 2 + margin
                 for r in regions
             )
             if clear_of_objects and clear_of_regions:
                 placed[name] = candidate
                 break
         else:
-            raise RuntimeError("Could not find a free layout; the table is too crowded")
+            return None
     return placed
+
+
+def shuffled_layout(names: list[str], regions: list[Region], seed: int) -> dict[str, XY]:
+    """Random object positions that do not overlap each other or any container."""
+    rng = random.Random(seed)
+    footprint = {name: block_def(name).shape.footprint for name in names}
+    for _ in range(50):
+        placed = _place_all(names, regions, rng, footprint)
+        if placed is not None:
+            return placed
+    raise RuntimeError("Could not find a free layout; the table is too crowded")
 
 
 def replay(

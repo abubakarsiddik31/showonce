@@ -8,7 +8,7 @@ import mujoco
 import numpy as np
 from numpy.typing import NDArray
 
-from showonce.sim.scene import BLOCK_HALF, SimWorld
+from showonce.sim.scene import SimWorld
 
 Vec = NDArray[np.float64]
 
@@ -22,7 +22,7 @@ class IKError(RuntimeError):
 
 
 class PandaController:
-    """Moves the Panda's tool center point with a top-down gripper and carries blocks."""
+    """Moves the Panda's tool center point with a top-down gripper and carries objects."""
 
     def __init__(
         self,
@@ -151,10 +151,10 @@ class PandaController:
         surface_z: float = 0.0,
         pick_at: Vec | None = None,
     ) -> None:
-        """Pick block ``name`` and set it down at ``target_xy`` with its bottom on ``surface_z``.
+        """Pick object ``name`` and set it down at ``target_xy`` with its bottom on ``surface_z``.
 
-        For stacking, pass the top of the block underneath as ``surface_z``. ``pick_at`` is the
-        believed block center; by default the simulator's ground truth is used.
+        For stacking, pass the top of the object underneath as ``surface_z``. ``pick_at`` is the
+        believed object center; by default the simulator's ground truth is used.
         """
         pick = self.world.block_pos(name) if pick_at is None else pick_at
         hover_pick = np.array([pick[0], pick[1], pick[2] + HOVER])
@@ -164,7 +164,7 @@ class PandaController:
         self.set_gripper(CLOSED, steps=150)
         self._set_weld(name, True)
         self.move_to(hover_pick)
-        place_z = surface_z + BLOCK_HALF + 0.002
+        place_z = surface_z + self.world.half_height(name) + 0.002
         hover_place = np.array([target_xy[0], target_xy[1], place_z + HOVER])
         self.move_to(hover_place)
         self.move_to(np.array([target_xy[0], target_xy[1], place_z]))

@@ -10,7 +10,7 @@ import cv2
 from showonce.geometry import WORK_CENTER_X, Calibration
 from showonce.meta.client import MetaClient
 from showonce.sim.record import top_view
-from showonce.sim.scene import BLOCK_HALF, CAMERA_HEIGHT, SimWorld
+from showonce.sim.scene import CAMERA_HEIGHT, SimWorld
 
 XY = tuple[float, float]
 
@@ -32,6 +32,11 @@ def _correct_parallax(table_xy: XY, height: float) -> XY:
     )
 
 
+def _looser(prompt: str) -> str:
+    """Drop the noun: "orange block" becomes "orange object"."""
+    return f"{prompt.split()[0]} object"
+
+
 def perceive_blocks(
     client: MetaClient,
     world: SimWorld,
@@ -49,11 +54,15 @@ def perceive_blocks(
 
     def locate(name: str) -> tuple[str, XY]:
         detections = client.segment_image(png, prompts[name])
+        if not detections:  # SAM can miss a low-contrast object; a looser phrase often finds it
+            detections = client.segment_image(png, _looser(prompts[name]))
         if not detections:
             raise NotFoundError(f"SAM found no '{prompts[name]}' for {name}")
         best = max(detections, key=lambda d: d.box.area)
+        shape = world.shape(name)
         table_xy = calibration.to_table(best.box.center)
-        return name, _correct_parallax(table_xy, BLOCK_HALF * 1.5)
+        table_xy = (table_xy[0] - shape.bbox_offset[0], table_xy[1] - shape.bbox_offset[1])
+        return name, _correct_parallax(table_xy, shape.half_height * 1.5)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return dict(pool.map(locate, prompts))

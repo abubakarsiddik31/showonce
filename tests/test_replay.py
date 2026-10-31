@@ -32,6 +32,15 @@ def test_shuffled_layout_is_deterministic_and_clear() -> None:
     )
 
 
+def test_mugs_are_kept_apart_and_inside_the_camera_view() -> None:
+    region = Region("tray", (0.468, -0.126), (0.167, 0.166))
+    names = ["red mug", "blue mug", "green mug"]
+    for seed in range(20):
+        points = list(shuffled_layout(names, [region], seed).values())
+        assert all(math.dist(p, q) > 0.1 for i, p in enumerate(points) for q in points[i + 1 :])
+        assert all(0.34 < x < 0.6 and -0.24 < y < 0.24 for x, y in points)
+
+
 @needs_panda
 def test_replay_with_oracle_positions_succeeds() -> None:
     scene = SceneSpec(
