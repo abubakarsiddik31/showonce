@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -103,6 +104,19 @@ def build_world(layout: Layout, program: TaskProgram | None = None) -> SimWorld:
     return world
 
 
+def _segment_clearance(start: XY, to: XY, point: XY) -> float:
+    """How far ``point`` is from the straight line ``start`` -> ``to`` (meters)."""
+    sx, sy = start
+    tx, ty = to
+    px, py = point
+    dx, dy = tx - sx, ty - sy
+    length2 = dx * dx + dy * dy
+    if length2 < 1e-9:
+        return float(math.hypot(px - sx, py - sy))
+    t = max(0.0, min(1.0, ((px - sx) * dx + (py - sy) * dy) / length2))
+    return float(math.hypot(px - (sx + t * dx), py - (sy + t * dy)))
+
+
 class ExecutionError(RuntimeError):
     """Raised when a step cannot be carried out."""
 
@@ -151,7 +165,9 @@ def execute(
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
-        if world.shape(step.object).grasp_width > MAX_GRASP_WIDTH + 1e-6:
+        if step.action in ("place_in", "place_near", "pour", "stir", "cut") and (
+            world.shape(step.object).grasp_width > MAX_GRASP_WIDTH + 1e-6
+        ):
             raise ExecutionError(f"'{step.object}' is too wide for the gripper")
         if step.action == "wipe":
             if step.target in world.block_names:
@@ -213,6 +229,51 @@ def execute(
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
+        if step.action == "push":
+            if step.target in by_name:
+                container = by_name[step.target]
+                to = slot_xy(container, placed[step.target], world.shape(step.object).radius)
+                placed[step.target] += 1
+            elif step.target in world.block_names:
+                neighbour = where(step.target)
+                others = [
+                    (tuple(where(n)[:2]), world.shape(n).footprint)
+                    for n in world.block_names
+                    if n not in (step.object, step.target)
+                ]
+                keep_out = [(r.center, (r.size[0] + 0.05, r.size[1] + 0.05)) for r in regions]
+                hx, hy, _ = world.shape(step.object).half
+                unit = RELATION_UNIT.get(step.relation or "next_to")
+                try:
+                    to = free_spot(
+                        (float(neighbour[0]), float(neighbour[1])), (hx, hy), others, keep_out, unit
+                    )
+                except ValueError as exc:
+                    raise ExecutionError(f"No free spot to push '{step.object}' to: {exc}") from exc
+            else:
+                raise ExecutionError(f"Unknown push target '{step.target}' in step: {step}")
+            src = (float(where(step.object)[0]), float(where(step.object)[1]))
+            for n in world.block_names:
+                if n in (step.object, step.target):
+                    continue
+                p = where(n)
+                gap = _segment_clearance(src, to, (float(p[0]), float(p[1]))) - (
+                    world.shape(step.object).radius + world.shape(n).radius
+                )
+                if gap < 0.01:
+                    raise ExecutionError(f"Cannot push '{step.object}': '{n}' blocked the path")
+            if step.target in by_name and math.dist(src, to) > 0.05:
+                # A single long slide tips the object over the container rim and
+                # flings it past the bin; staging most of the way first, then
+                # re-approaching for the final push, lands it inside instead.
+                mid = (src[0] + (to[0] - src[0]) * 0.7, src[1] + (to[1] - src[1]) * 0.7)
+                controller.slide(step.object, mid)
+            controller.slide(step.object, to)
+            if belief is not None:
+                belief[step.object] = np.array([to[0], to[1], world.half_height(step.object)])
+            if on_step_done is not None:
+                on_step_done(index, str(step))
+            continue
         if step.action == "stack_on":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown stack target '{step.target}' in step: {step}")
@@ -259,10 +320,21 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
             left, total = world.dirt_left(step.target)
             ok = total > 0 and left <= 0.05 * total
             checks.append(StepCheck(str(step), ok, f"{total - left} of {total} stains wiped"))
-        elif step.action == "place_in":
+        elif step.action in ("place_in", "push") and step.target in by_name:
             region = by_name[step.target]
             dx, dy = abs(pos[0] - region.center[0]), abs(pos[1] - region.center[1])
             ok = dx <= region.size[0] / 2 + 0.01 and dy <= region.size[1] / 2 + 0.01
+            checks.append(
+                StepCheck(str(step), bool(ok), f"offset ({dx * 1000:.0f}, {dy * 1000:.0f}) mm")
+            )
+        elif step.action == "push":
+            near = world.block_pos(step.target)
+            dx, dy = pos[0] - near[0], pos[1] - near[1]
+            band = world.shape(step.object).radius + world.shape(step.target).radius + 0.05
+            ok = (dx * dx + dy * dy) ** 0.5 <= band
+            if ok and step.relation and step.relation != "next_to":
+                ux, uy = RELATION_UNIT[step.relation]
+                ok = dx * ux + dy * uy > 0
             checks.append(
                 StepCheck(str(step), bool(ok), f"offset ({dx * 1000:.0f}, {dy * 1000:.0f}) mm")
             )
