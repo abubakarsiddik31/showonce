@@ -173,7 +173,7 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
         pos = world.block_pos(step.object)
         if step.action == "open":
             ok = world.is_open(step.object)
-            checks.append(StepCheck(str(step), ok, "lid off" if ok else "lid still on"))
+            checks.append(StepCheck(str(step), ok, "seal torn off" if ok else "seal still on"))
         elif step.action == "wipe":
             left, total = world.dirt_left(step.target)
             ok = total > 0 and left <= 0.05 * total

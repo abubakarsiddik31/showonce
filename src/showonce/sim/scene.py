@@ -19,8 +19,10 @@ BLOCK_HALF = 0.02  # half the edge of a default 4 cm cube
 TRAY_FLOOR = 0.004  # thickness of a container's floor
 RIM_THICKNESS = 0.006
 RIM_HEIGHT = 0.012  # low enough that a mug handle clears it
-LID_THICKNESS = 0.012
-TAB = (0.006, 0.012, 0.0125)  # half extents of the pull tab on a packet's lid; 12 mm to pinch
+# A packet lies flat. Its seal is a thin strip along the +x (top) edge, longer than the bag so
+# the ends stick out like a crimped seam: that is where the gripper takes hold and tears it off.
+STRIP_HALF = (0.01, 0.0, 0.004)  # half width along x and half thickness; length follows the bag
+STRIP_TAIL = 0.03  # how far the strip sticks out past each side of the bag
 DIRT_SPOTS = 14
 DIRT_RADIUS = 0.012
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
@@ -37,7 +39,7 @@ class Shape:
     kind: ShapeKind
     half: tuple[float, float, float]  # half extents along x, y, z
     handle: float = 0.0  # how far a handle sticks out along +y; the gripper closes along x
-    openable: bool = False  # a sealed packet: its lid is a separate body with a pull tab
+    openable: bool = False  # a sealed packet: its seal strip is a separate body
 
     @property
     def half_height(self) -> float:
@@ -61,7 +63,8 @@ class Shape:
     @property
     def bbox_offset(self) -> tuple[float, float]:
         """Where the top camera's box center sits relative to the body center."""
-        return (0.0, self.handle / 2)
+        # SAM outlines the bag but not its pale seal strip, which lies along the +x edge.
+        return (-STRIP_HALF[0] if self.openable else 0.0, self.handle / 2)
 
 
 def shape_of(profile: ObjectProfile) -> Shape:
@@ -79,6 +82,11 @@ class BlockDef:
 
 def lid_name(name: str) -> str:
     return f"{name}_lid"
+
+
+def strip_offset(shape: Shape) -> tuple[float, float]:
+    """Where a packet's seal strip sits relative to the bag's center: (x, z)."""
+    return shape.half[0] - STRIP_HALF[0], shape.half[2] + STRIP_HALF[2]
 
 
 def block_def(name: str, profile: ObjectProfile | None = None) -> BlockDef:
@@ -260,62 +268,42 @@ class SimWorld:
     def _add_packet_body(
         body: mujoco.MjsBody, block: BlockDef, physics: Mapping[str, object]
     ) -> None:
-        """A bag open at the top: floor and four walls, with a few chips inside."""
+        """A bag lying flat, with a dark slit along its top edge that shows once the seal is off."""
         hx, hy, hz = block.shape.half
-        rgba, t = list(block.rgba), 0.002
-        walls = (
-            ("floor", (0, 0, -hz + t), (hx, hy, t)),
-            ("wall_px", (hx - t, 0, 0), (t, hy, hz)),
-            ("wall_nx", (-hx + t, 0, 0), (t, hy, hz)),
-            ("wall_py", (0, hy - t, 0), (hx - 2 * t, t, hz)),
-            ("wall_ny", (0, -hy + t, 0), (hx - 2 * t, t, hz)),
+        body.add_geom(
+            name=f"{block.name}_geom",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            size=[hx, hy, hz],
+            rgba=list(block.rgba),
+            **physics,
         )
-        for part, pos, half in walls:
-            body.add_geom(
-                name=f"{block.name}_{part}",
-                type=mujoco.mjtGeom.mjGEOM_BOX,
-                pos=list(pos),
-                size=list(half),
-                rgba=rgba,
-                **physics,
-            )
-        chip = min(0.014, 0.4 * min(hx, hy))
-        for i in range(5):  # visible once the lid is off
-            body.add_geom(
-                name=f"{block.name}_chip{i}",
-                type=mujoco.mjtGeom.mjGEOM_CYLINDER,
-                pos=[0.3 * chip * (i % 2 - 0.5), 0.3 * chip * (i % 3 - 1), hz - 0.012 - 0.004 * i],
-                size=[chip, 0.002, 0],
-                rgba=[0.95, 0.78, 0.25, 1],
-                contype=0,
-                conaffinity=0,
-                mass=0.001,
-            )
+        body.add_geom(
+            name=f"{block.name}_slit",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            pos=[hx - STRIP_HALF[0], 0, hz + 0.0005],
+            size=[STRIP_HALF[0], hy, 0.0005],
+            rgba=[0.12, 0.05, 0.05, 1],
+            contype=0,
+            conaffinity=0,
+            mass=0.001,
+        )
 
     @staticmethod
     def _add_lid(world: mujoco.MjsBody, block: BlockDef, start: list[float]) -> None:
-        """The lid rests on the bag. A tab on top is what the gripper pinches to pull it off."""
-        hx, hy, hz = block.shape.half
-        body = world.add_body(
-            name=lid_name(block.name),
-            pos=[start[0], start[1], 2 * hz + LID_THICKNESS / 2],
-        )
+        """The seal strip, resting on the bag's top edge. It is the part that gets torn off."""
+        _, hy, hz = block.shape.half
+        dx, dz = strip_offset(block.shape)
+        body = world.add_body(name=lid_name(block.name), pos=[start[0] + dx, start[1], dz + hz])
         body.add_freejoint()
-        common = {"rgba": list(block.rgba), "mass": 0.01, "friction": [1.5, 0.01, 0.0005]}
+        light = [min(1.0, 0.45 + 0.55 * c) for c in block.rgba[:3]] + [1.0]  # foil, a lighter shade
         body.add_geom(
             name=f"{block.name}_lid",
             type=mujoco.mjtGeom.mjGEOM_BOX,
-            size=[hx, hy, LID_THICKNESS / 2],
+            size=[STRIP_HALF[0], hy + STRIP_TAIL, STRIP_HALF[2]],
+            rgba=light,
+            mass=0.01,
+            friction=[1.5, 0.01, 0.0005],
             conaffinity=3,
-            **common,
-        )
-        body.add_geom(
-            name=f"{block.name}_tab",
-            type=mujoco.mjtGeom.mjGEOM_BOX,
-            pos=[0, 0, LID_THICKNESS / 2 + TAB[2]],
-            size=list(TAB),
-            conaffinity=3,
-            **common,
         )
 
     @staticmethod
@@ -401,8 +389,8 @@ class SimWorld:
         if self._shapes[name].openable:  # the lid goes back on top of the bag
             lid = self.model.joint(int(self.model.body(lid_name(name)).jntadr[0]))
             lid_adr = int(lid.qposadr[0])
-            z_lid = z + self.half_height(name) + LID_THICKNESS / 2
-            self.data.qpos[lid_adr : lid_adr + 7] = [xy[0], xy[1], z_lid, 1, 0, 0, 0]
+            dx, dz = strip_offset(self._shapes[name])
+            self.data.qpos[lid_adr : lid_adr + 7] = [xy[0] + dx, xy[1], z + dz, 1, 0, 0, 0]
             self.data.qvel[int(lid.dofadr[0]) : int(lid.dofadr[0]) + 6] = 0
         mujoco.mj_forward(self.model, self.data)
 
@@ -413,9 +401,10 @@ class SimWorld:
         return np.array(self.data.xpos[self.model.body(lid_name(name)).id])
 
     def is_open(self, name: str) -> bool:
-        """The lid has been carried clear of the bag."""
-        offset = self.lid_pos(name)[:2] - self.block_pos(name)[:2]
-        return bool(np.linalg.norm(offset) > self._shapes[name].footprint + 0.02)
+        """The seal strip has been torn off and laid clear of the bag."""
+        hx, hy, _ = self._shapes[name].half
+        dx, dy = np.abs(self.lid_pos(name)[:2] - self.block_pos(name)[:2])
+        return bool(dx > hx + 0.01 or dy > hy + STRIP_TAIL + 0.03)
 
     def surface_top(self, name: str) -> float:
         """Height of the top of an object or container tray."""

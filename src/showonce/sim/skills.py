@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from showonce.sim.controller import PandaController
-from showonce.sim.scene import LID_THICKNESS, TAB, SimWorld
+from showonce.sim.scene import STRIP_HALF, STRIP_TAIL, SimWorld, strip_offset
 
 XY = tuple[float, float]
 Vec = NDArray[np.float64]
@@ -20,7 +20,7 @@ Vec = NDArray[np.float64]
 CLEARANCE = 0.01  # a held sponge rides this far above what it cleans, so it never drags it
 SPONGE_MARGIN = 0.005  # stains this close to the sponge's edge still count as wiped
 DROP_CLEARANCE = 0.09  # how far from other things a lid is put down
-LID_REACH_X, LID_REACH_Y = (0.36, 0.58), (-0.22, 0.22)  # where the arm can put a lid down
+LID_REACH_X, LID_REACH_Y = (0.34, 0.60), (-0.22, 0.22)  # where the arm can put a lid down
 
 
 def wipe_path(centre: XY, half: XY, tool_half: XY) -> list[XY]:
@@ -71,32 +71,40 @@ def _drop_spot(
     others: list[tuple[XY, float]],
     keep_out: list[tuple[XY, XY]],
 ) -> XY:
-    """Where to put a lid down: beside the bag, as far as possible from everything else.
+    """Where to lay the torn-off strip: right beside the bag, clear of everything else.
 
-    The hand is wide along x, so the sides (along y) come first; a tall bag would be hit
-    if the lid went down in line with it along x.
+    The strip lies parallel to the bag's top edge and is long, so clearance is measured against
+    its footprint, not just its center.
     """
-    reach_y, reach_x = 2 * half[1] + 0.06, 2 * half[0] + 0.14
+    length = half[1] + STRIP_TAIL
+    gaps = (0.04, 0.07, 0.10)  # from the bag's edge; a flat bag needs no room for the hand
+    sides = [(sign * (half[0] + gap), 0.0) for gap in gaps for sign in (1, -1)]
     best, best_room = None, -math.inf
-    for dx, dy in ((0, reach_y), (0, -reach_y), (reach_x, 0), (-reach_x, 0)):
+    for dx, dy in sides:
         spot = (bag[0] + dx, bag[1] + dy)
         if not (
             LID_REACH_X[0] <= spot[0] <= LID_REACH_X[1]
             and LID_REACH_Y[0] <= spot[1] <= LID_REACH_Y[1]
         ):
             continue
-        room = min([math.dist(spot, p) - r for p, r in others] + [1.0])
+        room = min(
+            [
+                max(abs(spot[0] - p[0]) - r - STRIP_HALF[0], abs(spot[1] - p[1]) - r - length)
+                for p, r in others
+            ]
+            + [1.0]
+        )
         for centre, size in keep_out:
             room = min(
                 room,
                 max(abs(spot[0] - centre[0]) - size[0] / 2, abs(spot[1] - centre[1]) - size[1] / 2),
             )
-        if dx == 0:
-            room += 0.05  # prefer the sides
+        if dx != 0:
+            room -= abs(dx) * 0.5  # the closer to the bag the better, as in the video
         if room > best_room:
             best, best_room = spot, room
     if best is None:
-        raise ValueError("No free place to put the lid down")
+        raise ValueError("No free place to lay the strip down")
     return best
 
 
@@ -108,12 +116,14 @@ def open_package(
     others: list[tuple[XY, float]],
     keep_out: list[tuple[XY, XY]],
 ) -> None:
-    """Pinch the lid's pull tab, pull the lid off the packet and put it aside."""
+    """Take hold of the seal strip by the end that sticks out, tear it off and lay it aside."""
     shape = world.shape(package)
-    hz = shape.half[2]
-    tab_z = 2 * hz + LID_THICKNESS + TAB[2]  # middle of the tab
-    spot = _drop_spot(bag, (shape.half[0], shape.half[1]), others, keep_out)
-    rest_z = LID_THICKNESS + TAB[2] + 0.002  # tab height when the lid lies on the table
-    controller.pull_off(
-        f"{package}_lid", np.array([bag[0], bag[1], tab_z]), np.array([spot[0], spot[1], rest_z])
-    )
+    hx, hy, hz = shape.half
+    dx, _ = strip_offset(shape)
+    # Grip the end nearer the middle of the table, so the arm does not stretch to the edge.
+    side = -1.0 if bag[1] > 0 else 1.0
+    reach = side * (hy + STRIP_TAIL / 2)
+    grip = np.array([bag[0] + dx, bag[1] + reach, 2 * hz + STRIP_HALF[2]])
+    spot = _drop_spot(bag, (hx, hy), others, keep_out)
+    rest_z = STRIP_HALF[2] + 0.002  # the strip lies flat on the table
+    controller.pull_off(f"{package}_lid", grip, np.array([spot[0], spot[1] + reach, rest_z]))

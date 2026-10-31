@@ -16,7 +16,7 @@ needs_panda = pytest.mark.skipif(
 
 PLATE = ObjectProfile(shape="cylinder", width=0.13, depth=0.13, height=0.02)
 SPONGE = ObjectProfile(shape="box", width=0.06, depth=0.04, height=0.025)
-CHIPS = ObjectProfile(shape="box", width=0.09, depth=0.04, height=0.16, openable=True)
+CHIPS = ObjectProfile(shape="box", width=0.12, depth=0.16, height=0.05, openable=True)
 
 
 def test_step_text_reads_naturally() -> None:
@@ -74,7 +74,7 @@ def test_wipe_clears_every_stain_and_open_takes_the_lid_off() -> None:
     execute(program, world, PandaController(world), [])
     assert all(c.ok for c in verify(program, world, []))
     assert world.dirt_left("white plate")[0] == 0 and world.is_open("red chips")
-    assert world.block_pos("red chips")[2] == pytest.approx(0.08, abs=0.005)  # still upright
+    assert world.block_pos("red chips")[2] == pytest.approx(0.025, abs=0.005)  # bag not moved
 
 
 @needs_panda

@@ -64,10 +64,10 @@ in the simulator. These are AI-generated test clips, not real footage.
 | fruit_into_bowl | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
 | toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
 | dishes_wash | 2 of 2 correct (wipe each plate) | Muse Spark (a wipe is not visible to tracking) | 2/2 steps, 28 of 28 stains | 2/2 steps, 28 of 28 stains |
-| chips_open | 1 of 1 correct (open the red bag) | Muse Spark | lid off | lid off |
+| chips_open | 1 of 1 correct (open the red bag) | Muse Spark | seal torn off | seal torn off |
 
 SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds
-2, 5 and 11, and the chips clip on 11.
+2, 5 and 11, and the chips clip on six layouts.
 
 ## How objects are modelled
 
@@ -94,11 +94,11 @@ against simulator ground truth (`src/showonce/sim/skills.py`, `executor.py`):
 | `place_in` | put an object in a container | pick, carry, set down inside the tray's rim |
 | `stack_on` | put an object on another | same, onto the top of the one below |
 | `wipe` | clean a dish or surface with a sponge or cloth | pick up the tool, sweep a back-and-forth raster over the whole surface; every stain it passes over is cleared |
-| `open` | tear open a bag, packet or box | pinch the lid's pull tab, lift the lid off and set it aside; the contents show |
+| `open` | tear open a bag or packet | take the seal strip along the bag's top edge by its protruding end, tear it off and lay it beside the bag, as the hand does in the clip |
 
 Where things ended up cannot show a wipe or a tear, so when Muse Spark reads either one in the
 clip, its reading is used instead of the motion tracking. These are simulator abstractions:
-there is no fluid or cloth physics, and a "tear" is a lid coming off, not a bag ripping.
+there is no fluid or cloth physics, and a "tear" is a seal strip coming off a flat bag, not a bag ripping.
 Nothing here has been tested on real footage yet.
 
 ## Development
