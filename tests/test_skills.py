@@ -1,6 +1,7 @@
 import itertools
 import math
 
+import numpy as np
 import pytest
 
 from showonce.demo import fit_profiles
@@ -116,3 +117,16 @@ def test_circular_scrub_starts_at_the_middle_and_stays_on_the_dish() -> None:
 
 def test_circular_scrub_on_a_dish_smaller_than_the_sponge_stays_in_the_middle() -> None:
     assert set(circle_path((0.5, 0.0), 0.01, (0.034, 0.022))) == {(0.5, 0.0)}
+
+
+@needs_panda
+def test_slide_pushes_a_box_without_grasping() -> None:
+    book = ObjectProfile(shape="box", width=0.2, depth=0.14, height=0.03)  # far too wide to grasp
+    layout = Layout({"green book": (0.35, -0.1)}, [], {"green book": book})
+    world = build_world(layout, None)
+    controller = PandaController(world)
+    controller.reset_to_home()
+    before = world.block_pos("green book").copy()
+    controller.slide("green book", (0.35, 0.15))
+    moved = float(np.linalg.norm(world.block_pos("green book")[:2] - before[:2]))
+    assert moved > 0.15
