@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from showonce.demo import regions_from_scene
@@ -28,6 +29,7 @@ REGION_MARGIN = 0.05
 class ReplayResult:
     checks: list[StepCheck]
     perception_error_mm: dict[str, float]
+    step_frames: list[int] = field(default_factory=list)  # recorded frame count after each step
 
     @property
     def success(self) -> bool:
@@ -65,6 +67,7 @@ def replay(
     *,
     record_to: Path | None = None,
     oracle: bool = False,
+    on_step_done: Callable[[int, str], None] | None = None,
 ) -> ReplayResult:
     """Shuffle the table, find the objects, and run the program.
 
@@ -86,7 +89,14 @@ def replay(
         perceived = perceive_blocks(client, world, scene.prompts_for_sim, calibration)
         errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
     controller.go_home()
-    execute(program, world, controller, regions, perceived)
+    step_frames: list[int] = []
+
+    def step_done(index: int, text: str) -> None:
+        step_frames.append(len(recorder.frames) if recorder else 0)
+        if on_step_done is not None:
+            on_step_done(index, text)
+
+    execute(program, world, controller, regions, perceived, step_done)
     if recorder and record_to:
         recorder.save(record_to)
-    return ReplayResult(verify(program, world, regions), errors)
+    return ReplayResult(verify(program, world, regions), errors, step_frames)

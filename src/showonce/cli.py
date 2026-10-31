@@ -197,9 +197,7 @@ def demo(
 
 @app.command("eval-demo")
 def eval_demo(
-    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)] = Path(
-        "samples/synthetic"
-    ),
+    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)] = Path("samples"),
 ) -> None:
     """Run video -> program -> robot on every clip with a ground-truth json and score it."""
     import json
@@ -295,9 +293,7 @@ def replay(
 
 @app.command("eval-replay")
 def eval_replay(
-    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)] = Path(
-        "samples/synthetic"
-    ),
+    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)] = Path("samples"),
     layouts: Annotated[int, typer.Option(help="Shuffled layouts per clip.")] = 3,
 ) -> None:
     """Learn each clip, then replay it on shuffled layouts and score the result."""
@@ -344,3 +340,16 @@ def eval_replay(
     console.print(f"{total}/{layouts * len(rows)} replays succeeded")
     settings.runs_dir.mkdir(parents=True, exist_ok=True)
     (settings.runs_dir / "eval_replay.json").write_text(json.dumps(rows, indent=2))
+
+
+@app.command()
+def ui(
+    host: Annotated[str, typer.Option(help="Interface to listen on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
+) -> None:
+    """Serve the web app: teach a task from a clip, then watch the arm do it."""
+    import uvicorn
+
+    from showonce.api.app import create_app
+
+    uvicorn.run(create_app(), host=host, port=port, log_level="info")

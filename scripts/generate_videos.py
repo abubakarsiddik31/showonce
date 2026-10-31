@@ -9,7 +9,7 @@ One clip is one continuous video, so the hand and objects stay consistent with n
 3. Each further step extends the same video (previous_interaction_id), 10 s at a time, up to
    40 s in total.
 
-Every turn is cached under samples/generated/_work/<name>/, so reruns only pay for missing
+Every turn is cached under .cache/generated/<name>/, so reruns only pay for missing
 turns (about $0.10 per generated second). Needs GEMINI_API_KEY and the `tools` group:
 
     uv run --group tools python scripts/generate_videos.py --only toys_into_bin
@@ -31,8 +31,8 @@ from showonce.config import get_settings
 from showonce.meta.client import MetaClient
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "samples" / "generated"
-WORK = OUT / "_work"
+OUT = ROOT / "samples"
+WORK = ROOT / ".cache" / "generated"
 VIDEO_MODEL = "gemini-omni-1.1-flash"  # about $0.10 per second of 720p video
 IMAGE_MODEL = "gemini-3.1-flash-image"
 

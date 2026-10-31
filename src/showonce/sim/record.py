@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 from showonce.sim.scene import CAMERA_ASPECT, CAMERA_NAME, SimWorld
 
 Image = NDArray[np.uint8]
+SIM_FPS = 50
 
 
 class SimRecorder:
@@ -31,7 +32,7 @@ class SimRecorder:
         self.renderer.update_scene(self.world.data, camera=self.camera)
         self.frames.append(self.renderer.render().copy())
 
-    def save(self, path: Path, fps: int = 50) -> None:
+    def save(self, path: Path, fps: int = SIM_FPS) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with imageio.get_writer(
             path, fps=fps, codec="libx264", pixelformat="yuv420p", macro_block_size=2

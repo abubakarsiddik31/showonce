@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     request_timeout_s: float = 120.0
     cache_dir: Path = Path(".cache/showonce")
     runs_dir: Path = Path("runs")
+    samples_dir: Path = Path("samples")
+    web_dist: Path = Path("web/dist")
     log_level: str = "INFO"
 
     def require_api_key(self) -> str:

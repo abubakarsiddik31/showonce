@@ -29,14 +29,13 @@ uv run showonce --help
 
 ```bash
 ./scripts/fetch_assets.sh                  # downloads the Panda model
-uv run showonce synth                      # renders 8 synthetic clips
-uv run showonce demo samples/synthetic/stack_red_on_blue_cups.mp4 \
-    --scene samples/synthetic/stack_red_on_blue_cups.json
-uv run showonce eval-demo                  # score video -> program -> robot on all clips
-uv run showonce replay runs/stack_red_on_blue_cups/program.json \
-    --scene samples/synthetic/stack_red_on_blue_cups.json --seed 3   # shuffled layout, SAM finds the blocks
-uv run showonce eval-replay                # 8 clips x 3 shuffled layouts
+uv run showonce demo samples/toys_into_bin.mp4 --scene samples/toys_into_bin.json
+uv run showonce eval-demo                  # score video -> program -> robot on samples/
+uv run showonce replay runs/toys_into_bin/program.json \
+    --scene runs/toys_into_bin/scene.json --seed 3   # shuffled layout, SAM finds the blocks
+uv run showonce eval-replay                # every sample x 3 shuffled layouts
 uv run showonce sim-test                   # 10 random block stacks, no API needed
+uv run showonce ui                         # the web app (see below)
 ```
 
 ## Development
@@ -50,31 +49,11 @@ uv run mypy            # type check
 
 ## Sample clips
 
-No footage is committed. Generate 8 synthetic clips (mp4 + ground-truth json) with:
+`samples/` holds three 30 s test clips of a tabletop task, each with a scene file naming the
+objects and containers: `toys_into_bin`, `dishes_into_rack` and `fruit_into_bowl`. They are
+AI-generated test footage (see `scripts/generate_videos.py`, a development tool that is not part
+of the product), not real recordings. Put real phone clips next to them with a scene file of
+the same shape.
 
-```bash
-uv run showonce synth   # writes to samples/synthetic/
-```
-
-Put real phone clips in `samples/`.
-
-## Layout
-
-```
-src/showonce/
-  config.py        settings from env / .env
-  cache.py         content-hash JSON cache
-  cli.py           `showonce` command
-  meta/            Meta Model API client and SAM output parser
-  geometry.py      pixel to table calibration
-  learn.py         moves to a symbolic task program
-  program.py       task program model (json)
-  perception/      resting-state and move detection
-  sim/             MuJoCo scene, controller, executor
-  synth/           synthetic top-down demo clips with ground truth
-tests/             unit tests
-```
-
-## License
-
-MIT
+Eight synthetic clips with pixel-level ground truth, used for the move-detection eval, are
+rebuilt locally with `uv run showonce synth` (written to the git-ignored `samples/synthetic/`).
