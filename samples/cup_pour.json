@@ -1,0 +1,8 @@
+{
+  "name": "cup_pour",
+  "notes": "AI-generated footage (anchored step). Step hand-labeled from the final video.",
+  "size": [1280, 720],
+  "prompts": {"red cup": "red cup"},
+  "container_prompts": {"bowl": "white bowl"},
+  "steps": [{"object": "red cup", "action": "pour", "target": "bowl"}]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "book_push_aside",
+  "notes": "AI-generated footage (anchored step). Step hand-labeled from the final video.",
+  "size": [1280, 720],
+  "prompts": {"green book": "large green book", "red block": "red block"},
+  "container_prompts": {},
+  "steps": [{"object": "green book", "action": "push", "target": "red block", "relation": "behind"}]
+}

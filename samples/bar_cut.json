@@ -1,0 +1,8 @@
+{
+  "name": "bar_cut",
+  "notes": "AI-generated footage (anchored step). Step hand-labeled from the final video.",
+  "size": [1280, 720],
+  "prompts": {"gray knife": "gray knife", "white bar": "white dough bar"},
+  "container_prompts": {},
+  "steps": [{"object": "gray knife", "action": "cut", "target": "white bar"}]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "lamp_press",
+  "notes": "AI-generated footage (anchored step). Step hand-labeled from the final video.",
+  "size": [1280, 720],
+  "prompts": {"orange lamp": "orange push light"},
+  "container_prompts": {},
+  "steps": [{"object": "orange lamp", "action": "press", "target": "orange lamp"}]
+}
