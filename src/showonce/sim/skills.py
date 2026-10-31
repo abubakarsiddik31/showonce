@@ -250,3 +250,25 @@ def stir(
     controller.sweep(path[1:], z)
     world.stir(target_name)
     controller.release(tool, tool_at + np.array([0.0, 0.0, 0.002]))
+
+
+def cut(
+    world: SimWorld,
+    controller: PandaController,
+    knife: str,
+    knife_at: Vec,
+    target: str,
+    centre: XY,
+    half: XY,
+) -> None:
+    """Draw the knife across the middle of ``target`` in one straight line and split it."""
+    hz = world.shape(knife).half[2]
+    top = float(world.block_pos(target)[2]) + world.shape(target).half[2]
+    z = top + hz + 0.002
+    y = half[1] + 0.03
+    controller.grasp(knife, knife_at)
+    controller.move_to(np.array([centre[0], centre[1] - y, z + 0.06]))
+    controller.move_to(np.array([centre[0], centre[1] - y, z]))
+    controller.move_to(np.array([centre[0], centre[1] + y, z]))  # one pass, edge to edge
+    world.split(target)
+    controller.release(knife, knife_at + np.array([0.0, 0.0, 0.002]))

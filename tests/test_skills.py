@@ -160,3 +160,25 @@ def test_pour_empties_the_cup_into_the_bowl() -> None:
     checks = verify(program, world, layout.regions)
     assert all(c.ok for c in checks), [c.detail for c in checks]
     assert world.contents_of("bowl") is not None and world.contents_of("red cup") is None
+
+
+@needs_panda
+def test_cut_divides_the_bar_and_refuses_a_ball() -> None:
+    knife = ObjectProfile(shape="box", width=0.02, depth=0.04, height=0.02)
+    bar = ObjectProfile(shape="box", width=0.12, depth=0.05, height=0.04)
+    layout = Layout(
+        {"gray knife": (0.4, -0.15), "white bar": (0.5, 0.1)}, [], {"gray knife": knife, "white bar": bar}
+    )
+    program = TaskProgram(name="t", steps=[Step(object="gray knife", action="cut", target="white bar")])
+    world = build_world(layout, program)
+    execute(program, world, PandaController(world), [])
+    assert all(c.ok for c in verify(program, world, []))
+
+    ball_layout = Layout(
+        {"gray knife": (0.4, -0.15), "red ball": (0.5, 0.1)},
+        [],
+        {"gray knife": knife, "red ball": ObjectProfile(shape="sphere", width=0.05, depth=0.05, height=0.05)},
+    )
+    bad = TaskProgram(name="t2", steps=[Step(object="gray knife", action="cut", target="red ball")])
+    with pytest.raises(ExecutionError, match="round"):
+        execute(bad, build_world(ball_layout, bad), PandaController(build_world(ball_layout, bad)), [])

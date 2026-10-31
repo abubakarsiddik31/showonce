@@ -13,7 +13,7 @@ from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
-from showonce.sim.skills import free_spot, open_package, pour, stir, wipe
+from showonce.sim.skills import cut, free_spot, open_package, pour, stir, wipe
 
 SLOT_MARGIN = 0.004  # clearance between a placed object and the rim
 # Where objects go in a container, as fractions of the free half-width: corners, then center.
@@ -302,6 +302,25 @@ def execute(
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
+        if step.action == "cut":
+            if step.target not in world.block_names:
+                raise ExecutionError(f"Unknown cut target '{step.target}' in step: {step}")
+            if world.shape(step.target).kind != "box":
+                raise ExecutionError(f"Cannot cut '{step.target}': it is round")
+            target_at = where(step.target)
+            hx, hy, _ = world.shape(step.target).half
+            cut(
+                world,
+                controller,
+                step.object,
+                where(step.object),
+                step.target,
+                (float(target_at[0]), float(target_at[1])),
+                (hx, hy),
+            )
+            if on_step_done is not None:
+                on_step_done(index, str(step))
+            continue
         if step.action == "stack_on":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown stack target '{step.target}' in step: {step}")
@@ -388,6 +407,9 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
         elif step.action == "stir":
             ok = world.is_mixed(step.target)
             checks.append(StepCheck(str(step), bool(ok), "mixed" if ok else "not mixed"))
+        elif step.action == "cut":
+            ok = world.is_split(step.target)
+            checks.append(StepCheck(str(step), bool(ok), "in two halves" if ok else "still whole"))
         else:
             below = world.block_pos(step.target)
             xy = float(((pos[0] - below[0]) ** 2 + (pos[1] - below[1]) ** 2) ** 0.5)
