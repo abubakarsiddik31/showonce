@@ -51,12 +51,27 @@ def dirty_surfaces(program: TaskProgram) -> set[str]:
     return {s.target for s in program.steps if s.action == "wipe"}
 
 
+def contents_for(program: TaskProgram) -> tuple[set[str], set[str]]:
+    """(what starts holding contents, what starts empty but will be poured into).
+
+    Like ``dirty_surfaces``: the program itself says what the world must start with, so a
+    pour source starts full and a stirred bowl starts unmixed-but-full.
+    """
+    full = {s.object for s in program.steps if s.action == "pour"}
+    full |= {s.target for s in program.steps if s.action == "stir"}
+    targets = {s.target for s in program.steps if s.action == "pour"}
+    return full, targets
+
+
 def build_world(layout: Layout, program: TaskProgram | None = None) -> SimWorld:
     """Create a world with one object per name and one tray per region."""
+    full, pour_targets = contents_for(program) if program else (set(), set())
     world = SimWorld(
         [block_def(name, layout.profiles.get(name)) for name in layout.objects],
         [ZoneDef(r.name, r.center, r.size) for r in layout.regions],
         dirty=dirty_surfaces(program) if program else (),
+        contents=full,
+        pour_targets=pour_targets,
     )
     for name, xy in layout.objects.items():
         world.set_block(name, xy)

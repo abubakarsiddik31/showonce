@@ -25,6 +25,7 @@ STRIP_HALF = (0.01, 0.0, 0.004)  # half width along x and half thickness; length
 STRIP_TAIL = 0.03  # how far the strip sticks out past each side of the bag
 DIRT_SPOTS = 14
 DIRT_RADIUS = 0.012
+CONTENTS_RGBA = (0.55, 0.42, 0.2, 1.0)  # dry cereal-brown: contents are an abstraction, not a fluid
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
 CAMERA_HEIGHT = 0.9
@@ -114,6 +115,8 @@ class SimWorld:
         zones: list[ZoneDef] | None = None,
         asset_dir: Path = DEFAULT_ASSET_DIR,
         dirty: Collection[str] = (),
+        contents: Collection[str] = (),
+        pour_targets: Collection[str] = (),
     ) -> None:
         panda_xml = asset_dir / "panda.xml"
         if not panda_xml.exists():
@@ -123,7 +126,9 @@ class SimWorld:
         self._rgb = {b.name: b.rgba[:3] for b in blocks}
         self._zones = {z.name: z for z in zones or []}
         spec = mujoco.MjSpec.from_file(str(panda_xml))
-        self._build_scene(spec, blocks, zones or [], set(dirty))
+        self._build_scene(
+            spec, blocks, zones or [], set(dirty), set(contents), set(pour_targets)
+        )
         self.model = spec.compile()
         self.data = mujoco.MjData(self.model)
         # Cancel gravity on the arm so position actuators do not sag; objects keep gravity.
@@ -141,6 +146,16 @@ class SimWorld:
             ]
             for surface in dirty
         }
+        self._contents: dict[str, str | None] = {name: "full" for name in contents}
+        self._mixed: set[str] = set()
+        self._content_geoms = {
+            name: mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_GEOM, f"contents_{name}"
+            )
+            for name in (*contents, *pour_targets)
+        }
+        for name in pour_targets:
+            self.model.geom_rgba[self._content_geoms[name], 3] = 0.0  # empty until poured into
         for body_id in range(1, self.model.nbody):
             self.model.body_gravcomp[body_id] = 0.0 if body_id in free else 1.0
         self.tcp_site = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "tcp")
@@ -149,7 +164,12 @@ class SimWorld:
 
     @staticmethod
     def _build_scene(
-        spec: mujoco.MjSpec, blocks: list[BlockDef], zones: list[ZoneDef], dirty: set[str]
+        spec: mujoco.MjSpec,
+        blocks: list[BlockDef],
+        zones: list[ZoneDef],
+        dirty: set[str],
+        contents: set[str],
+        pour_targets: set[str],
     ) -> None:
         world = spec.worldbody
         spec.visual.global_.offwidth = 1920
@@ -178,6 +198,9 @@ class SimWorld:
             if zone.name in dirty:
                 half = (zone.size[0] / 2 - RIM_THICKNESS, zone.size[1] / 2 - RIM_THICKNESS)
                 SimWorld._add_dirt(world, zone.name, (*zone.center, TRAY_FLOOR), half)
+            if zone.name in contents or zone.name in pour_targets:
+                half = (zone.size[0] / 2 - RIM_THICKNESS, zone.size[1] / 2 - RIM_THICKNESS)
+                SimWorld._add_contents(world, zone.name, (*zone.center, TRAY_FLOOR), half)
         spec.body("hand").add_site(
             name="tcp", pos=[0, 0, TCP_OFFSET], size=[0.004, 0.004, 0.004], rgba=[1, 0, 0, 0.3]
         )
@@ -189,6 +212,9 @@ class SimWorld:
             if block.name in dirty:
                 hx, hy, hz = block.shape.half
                 SimWorld._add_dirt(body, block.name, (0.0, 0.0, hz), (hx, hy))
+            if block.name in contents or block.name in pour_targets:
+                hx, hy, hz = block.shape.half
+                SimWorld._add_contents(body, block.name, (0.0, 0.0, hz), (hx, hy))
             graspable = [block.name]
             if block.shape.openable:
                 SimWorld._add_lid(world, block, start)
@@ -334,6 +360,23 @@ class SimWorld:
             )
 
     @staticmethod
+    def _add_contents(
+        body: mujoco.MjsBody, name: str, top: tuple[float, float, float], half: tuple[float, float]
+    ) -> None:
+        """A flat disc of contents, drawn only (no collisions): what a pour moves around."""
+        cx, cy, z = top
+        body.add_geom(
+            name=f"contents_{name}",
+            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+            pos=[cx, cy, z + 0.0008],
+            size=[min(half) * 0.7, 0.0008, 0],
+            rgba=list(CONTENTS_RGBA),
+            contype=0,
+            conaffinity=0,
+            mass=0.0001,
+        )
+
+    @staticmethod
     def _add_handle(body: mujoco.MjsBody, block: BlockDef) -> None:
         """A glazed interior and a handle on +y, drawn only (no collisions)."""
         shape, rgba = block.shape, list(block.rgba)
@@ -423,6 +466,24 @@ class SimWorld:
         """(stains still showing, stains it started with)."""
         geoms = self._dirt.get(surface, [])
         return sum(1 for g in geoms if self.model.geom_rgba[g, 3] > 0), len(geoms)
+
+    def pour_into(self, source: str, target: str) -> None:
+        """Everything in ``source`` ends up in ``target``: the disc moves, no drops, no amounts."""
+        if self._contents.get(source) is None:
+            raise ValueError(f"'{source}' has nothing to pour")
+        self._contents[source] = None
+        self._contents[target] = "poured"
+        self.model.geom_rgba[self._content_geoms[source], 3] = 0.0
+        self.model.geom_rgba[self._content_geoms[target], 3] = 1.0
+
+    def contents_of(self, name: str) -> str | None:
+        return self._contents.get(name)
+
+    def stir(self, name: str) -> None:
+        self._mixed.add(name)
+
+    def is_mixed(self, name: str) -> bool:
+        return name in self._mixed
 
     def tcp_pos(self) -> NDArray[np.float64]:
         return np.array(self.data.site_xpos[self.tcp_site])
