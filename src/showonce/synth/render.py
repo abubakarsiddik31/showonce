@@ -223,6 +223,7 @@ def write_clip(sc: Scenario, out_dir: Path) -> Path:
         "fps": FPS,
         "size": [WIDTH, HEIGHT],
         "duration_s": round(len(frames) / FPS, 2),
+        "prompts": {o.name: o.prompt or o.name for o in sc.objects},
         "initial": {k: list(v) for k, v in build_frames_initial(sc).items()},
         "steps": events,
         "final": {k: [round(v[0], 1), round(v[1], 1)] for k, v in final.positions.items()},

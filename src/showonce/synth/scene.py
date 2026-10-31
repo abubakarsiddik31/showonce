@@ -21,6 +21,7 @@ class ObjectSpec:
     name: str
     kind: Literal["block", "cup"]
     color: Color
+    prompt: str | None = None  # SAM prompt if it differs from the name
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,9 +62,9 @@ _BLOCKS = (
     ObjectSpec("blue block", "block", BLUE),
 )
 _CUPS = (
-    ObjectSpec("red cup", "cup", RED),
-    ObjectSpec("green cup", "cup", GREEN),
-    ObjectSpec("blue cup", "cup", BLUE),
+    ObjectSpec("red cup", "cup", RED, "red circle"),
+    ObjectSpec("green cup", "cup", GREEN, "green circle"),
+    ObjectSpec("blue cup", "cup", BLUE, "blue circle"),
 )
 
 SCENARIOS: tuple[Scenario, ...] = (

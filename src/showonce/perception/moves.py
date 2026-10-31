@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import dataclass
+from itertools import pairwise
 
 from showonce.meta.sam import Detection
 
@@ -92,6 +93,6 @@ def moves_from_rests(label: str, rests: list[Rest], min_move_px: float = 30.0) -
     """A move is a jump larger than ``min_move_px`` between two consecutive rests."""
     return [
         Move(label, prev.end_frame, nxt.start_frame, prev.center, nxt.center)
-        for prev, nxt in zip(rests, rests[1:], strict=False)
+        for prev, nxt in pairwise(rests)
         if math.dist(prev.center, nxt.center) > min_move_px
     ]
