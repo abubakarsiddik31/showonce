@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+@theme {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+
+  --color-canvas: #09090b;
+  --color-raised: #111114;
+  --color-sunken: #0c0c0f;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --color-ink: #f4f4f5;
+  --color-ink-dim: #a1a1aa;
+  --color-ink-faint: #71717a;
+  --color-accent: #34d399;
+  --color-accent-dim: #10b981;
+  --color-danger: #fb7185;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-canvas);
+  }
+  body {
+    @apply min-h-[100dvh] bg-canvas font-sans text-ink antialiased;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+  ::selection {
+    background: rgb(52 211 153 / 0.3);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@utility skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.04);
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+    animation: shimmer 1.6s var(--ease-out-expo) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}

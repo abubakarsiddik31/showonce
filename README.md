@@ -38,6 +38,21 @@ uv run showonce sim-test                   # 10 random block stacks, no API need
 uv run showonce ui                         # the web app (see below)
 ```
 
+## Web app
+
+`uv run showonce ui` serves the app at http://127.0.0.1:8000. Teach: pick a sample clip (or
+upload your own) and learn the task. Task program: edit the steps, and answer a question if the
+two readings of the demo disagree. Do: run the steps on a shuffled table in the simulator.
+
+The frontend is React, TypeScript and Tailwind in `web/`:
+
+```bash
+cd web && pnpm install
+pnpm dev        # http://localhost:5173, proxies /api to the Python server
+pnpm build      # writes web/dist, which `showonce ui` serves
+pnpm test && pnpm typecheck && pnpm lint
+```
+
 ## Development
 
 ```bash
