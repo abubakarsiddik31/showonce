@@ -3,7 +3,7 @@ import json
 import pytest
 
 from showonce.learn import compare_plans
-from showonce.meta.muse import build_request, parse_steps, response_text, step_schema
+from showonce.meta.muse import PROMPT, build_request, parse_steps, response_text, step_schema
 from showonce.program import Step
 
 
@@ -34,6 +34,24 @@ def test_response_text_reads_output_items() -> None:
 def test_parse_steps() -> None:
     text = json.dumps({"steps": [{"object": "a", "action": "place_in", "target": "box"}]})
     assert parse_steps(text) == [step("a", "place_in", "box")]
+
+
+def test_step_schema_knows_all_ten_actions_and_the_relation() -> None:
+    schema = step_schema(["red cup"], ["bowl"])
+    item = schema["properties"]["steps"]["items"]
+    assert set(item["properties"]["action"]["enum"]) == {
+        "place_in", "stack_on", "wipe", "open",
+        "place_near", "push", "pour", "stir", "cut", "press",
+    }
+    assert item["properties"]["relation"]["enum"] == [
+        "next_to", "left_of", "right_of", "in_front_of", "behind"
+    ]
+    assert "relation" not in item["required"]
+
+
+def test_prompt_names_every_action() -> None:
+    for action in ("place_near", "push", "pour", "stir", "cut", "press"):
+        assert f'"{action}"' in PROMPT
 
 
 def test_compare_plans_reports_differences() -> None:
