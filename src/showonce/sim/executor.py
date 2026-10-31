@@ -13,7 +13,7 @@ from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
-from showonce.sim.skills import free_spot, open_package, pour, wipe
+from showonce.sim.skills import free_spot, open_package, pour, stir, wipe
 
 SLOT_MARGIN = 0.004  # clearance between a placed object and the rim
 # Where objects go in a container, as fractions of the free half-width: corners, then center.
@@ -284,6 +284,24 @@ def execute(
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
+        if step.action == "stir":
+            region = by_name.get(step.target)
+            if region is None:
+                raise ExecutionError(f"Unknown container '{step.target}' in step: {step}")
+            if world.contents_of(step.target) is None:
+                raise ExecutionError(f"'{step.target}' has no contents to stir")
+            stir(
+                world,
+                controller,
+                step.object,
+                where(step.object),
+                step.target,
+                region.center,
+                (region.size[0] / 2 - RIM_THICKNESS, region.size[1] / 2 - RIM_THICKNESS),
+            )
+            if on_step_done is not None:
+                on_step_done(index, str(step))
+            continue
         if step.action == "stack_on":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown stack target '{step.target}' in step: {step}")
@@ -367,6 +385,9 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
             checks.append(
                 StepCheck(str(step), bool(ok), f"{step.target} holds the poured contents")
             )
+        elif step.action == "stir":
+            ok = world.is_mixed(step.target)
+            checks.append(StepCheck(str(step), bool(ok), "mixed" if ok else "not mixed"))
         else:
             below = world.block_pos(step.target)
             xy = float(((pos[0] - below[0]) ** 2 + (pos[1] - below[1]) ** 2) ** 0.5)

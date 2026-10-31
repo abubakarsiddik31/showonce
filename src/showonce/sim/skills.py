@@ -226,3 +226,27 @@ def pour(
     controller.dwell(100)
     controller.tilt(0.0)
     controller.release(source, source_at + np.array([0.0, 0.0, 0.002]))
+
+
+def stir(
+    world: SimWorld,
+    controller: PandaController,
+    tool: str,
+    tool_at: Vec,
+    target_name: str,
+    centre: XY,
+    half: XY,
+) -> None:
+    """Swirl the spoon through the bowl's contents, inside the rim, and put it back."""
+    hx, hy, hz = world.shape(tool).half
+    z = TRAY_FLOOR + hz + CLEARANCE  # the tool rides just above the bowl's floor
+    radius = max(0.01, min(half) - min(hx, hy) - 0.005)
+    path = circle_path(centre, radius, (hx, hy))
+
+    controller.grasp(tool, tool_at)
+    start = path[0]
+    controller.move_to(np.array([start[0], start[1], z + 0.06]))
+    controller.move_to(np.array([start[0], start[1], z]))
+    controller.sweep(path[1:], z)
+    world.stir(target_name)
+    controller.release(tool, tool_at + np.array([0.0, 0.0, 0.002]))

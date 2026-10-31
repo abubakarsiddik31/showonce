@@ -133,6 +133,23 @@ def test_slide_pushes_a_box_without_grasping() -> None:
 
 
 @needs_panda
+def test_stir_mixes_the_bowl() -> None:
+    spoon = ObjectProfile(shape="box", width=0.025, depth=0.025, height=0.09)
+    layout = Layout(
+        {"yellow spoon": (0.4, -0.1)}, [Region("bowl", (0.5, 0.12), (0.16, 0.16))],
+        {"yellow spoon": spoon},
+    )
+    program = TaskProgram(
+        name="t", steps=[Step(object="yellow spoon", action="stir", target="bowl")]
+    )
+    world = build_world(layout, program)
+    execute(program, world, PandaController(world), layout.regions)
+    checks = verify(program, world, layout.regions)
+    assert all(c.ok for c in checks), [c.detail for c in checks]
+    assert world.is_mixed("bowl")
+
+
+@needs_panda
 def test_pour_empties_the_cup_into_the_bowl() -> None:
     cup = ObjectProfile(shape="cylinder", width=0.06, depth=0.06, height=0.08, handle=True)
     profiles = {"red cup": cup}
