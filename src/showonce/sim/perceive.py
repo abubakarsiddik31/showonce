@@ -6,6 +6,8 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 
 import cv2
+import numpy as np
+from numpy.typing import NDArray
 
 from showonce.geometry import WORK_CENTER_X, Calibration
 from showonce.meta.client import MetaClient
@@ -14,6 +16,9 @@ from showonce.sim.record import top_view
 from showonce.sim.scene import CAMERA_HEIGHT, SimWorld
 
 XY = tuple[float, float]
+
+COLOR_TOLERANCE = 0.3  # a pixel counts as an object's colour when this close (RGB, 0 to 1.7)
+MIN_SHARE = 0.1  # a match must be at least this much its own colour
 
 
 class NotFoundError(RuntimeError):
@@ -33,6 +38,24 @@ def _correct_parallax(table_xy: XY, height: float) -> XY:
     )
 
 
+def _share(image: NDArray[np.uint8], det: Detection, color: tuple[float, float, float]) -> float:
+    """The fraction of the middle of a detection's box that is ``color``.
+
+    A stained white plate is still mostly white, and a mug is mostly its own colour, so this
+    holds up where an average colour would not.
+    """
+    box = det.box
+    w, h = box.x2 - box.x1, box.y2 - box.y1
+    crop = image[
+        max(0, int(box.y1 + 0.15 * h)) : int(box.y2 - 0.15 * h),
+        max(0, int(box.x1 + 0.15 * w)) : int(box.x2 - 0.15 * w),
+    ]
+    if crop.size == 0:
+        return 0.0
+    gap = np.linalg.norm(crop.reshape(-1, 3) / 255 - np.array(color), axis=1)
+    return float(np.mean(gap <= COLOR_TOLERANCE))
+
+
 def perceive_blocks(
     client: MetaClient,
     world: SimWorld,
@@ -49,14 +72,24 @@ def perceive_blocks(
     png = encoded.tobytes()
 
     def locate(name: str) -> tuple[str, XY]:
-        detections: list[Detection] = []
+        expected = world.color(name)
+        rivals = [world.color(n) for n in prompts if n != name]
+        best: Detection | None = None
         for phrase in prompts[name]:  # SAM is picky about wording, so try each in turn
-            detections = client.segment_image(png, phrase)
-            if detections:
-                break
-        if not detections:
+            # A loose phrase can match another object too, so keep only matches that are at
+            # least as much this object's colour as any other object's.
+            scored = [
+                (_share(image, d, expected), d)
+                for d in client.segment_image(png, phrase)
+                if _share(image, d, expected)
+                >= max((_share(image, d, r) for r in rivals), default=0)
+            ]
+            if scored:
+                share, best = max(scored, key=lambda item: (item[0] >= MIN_SHARE, item[1].box.area))
+                if share >= MIN_SHARE:
+                    break
+        if best is None:
             raise NotFoundError(f"SAM found no '{prompts[name][0]}' for {name}")
-        best = max(detections, key=lambda d: d.box.area)
         shape = world.shape(name)
         table_xy = calibration.to_table(best.box.center)
         table_xy = (table_xy[0] - shape.bbox_offset[0], table_xy[1] - shape.bbox_offset[1])

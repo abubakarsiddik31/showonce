@@ -7,7 +7,7 @@ import { ErrorNote } from '../../components/ErrorNote'
 import { LiveDot } from '../../components/LiveDot'
 import { Section } from '../../components/Section'
 import { Skeleton } from '../../components/Skeleton'
-import { cn, formatTime } from '../../lib/format'
+import { cn, formatTime, plural } from '../../lib/format'
 import type { EditableStep } from '../workbench'
 
 interface Props {
@@ -73,7 +73,7 @@ export function RunPanel(props: Props) {
           disabled={!canRun || busy}
           onClick={onRun}
         >
-          Run {steps.length > 0 ? `${steps.length} steps` : ''}
+          Run {steps.length > 0 ? plural(steps.length, 'step') : ''}
         </Button>
       </div>
 
@@ -123,7 +123,7 @@ export function RunPanel(props: Props) {
             ) : (
               <XCircle size={18} weight="fill" />
             )}
-            {verified} of {run.checks.length} steps verified in the simulator
+            {verified} of {plural(run.checks.length, 'step')} verified in the simulator
           </p>
           <ol className="flex flex-col divide-y divide-line border-y border-line">
             {run.checks.map((check, i) => {

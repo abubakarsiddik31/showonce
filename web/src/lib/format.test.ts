@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeStep, targetsFor, formatTime, objectTone } from './format'
+import { describeStep, formatTime, objectTone, plural, targetsFor } from './format'
 
 describe('formatTime', () => {
   it('pads minutes and keeps one decimal', () => {
@@ -43,5 +43,13 @@ describe('objectTone', () => {
   it('uses the colour word in the name, with a neutral fallback', () => {
     expect(objectTone('green block')).toBe('#4ade80')
     expect(objectTone('spanner')).toBe('#a1a1aa')
+  })
+})
+
+describe('plural', () => {
+  it('only adds the s when it is not exactly one', () => {
+    expect(plural(1, 'step')).toBe('1 step')
+    expect(plural(0, 'step')).toBe('0 steps')
+    expect(plural(3, 'step')).toBe('3 steps')
   })
 })

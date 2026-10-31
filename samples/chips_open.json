@@ -1,0 +1,19 @@
+{
+  "name": "chips_open",
+  "notes": "AI-generated footage (anchored step). A yellow snack packet sits untouched as a distractor. Step hand-labeled from the final video.",
+  "size": [
+    1280,
+    720
+  ],
+  "prompts": {
+    "red chips": "red chips bag"
+  },
+  "container_prompts": {},
+  "steps": [
+    {
+      "object": "red chips",
+      "action": "open",
+      "target": "red chips"
+    }
+  ]
+}

@@ -75,8 +75,9 @@ def test_each_object_gets_several_phrases_for_sam_best_first() -> None:
     plate = ObjectProfile(shape="cylinder", width=0.13, depth=0.13, height=0.02)
     assert sim_prompts("white plate", plate) == [
         "white plate",
-        "round plate",
+        "white circle",
         "white round object",
+        "round plate",
         "white object",
     ]
     packet = ObjectProfile(openable=True)

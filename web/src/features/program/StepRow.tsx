@@ -39,26 +39,28 @@ export function StepRow({ step, index, objects, containers, onEdit, onRemove }: 
       dragControls={controls}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       whileDrag={{ scale: 1.02, boxShadow: '0 18px 40px -16px rgba(0,0,0,0.7)' }}
-      className="relative flex items-center gap-2 rounded-xl border border-line bg-raised py-2 pr-2 pl-1"
+      className="relative flex flex-col gap-1.5 rounded-xl border border-line bg-raised py-2 pr-2 pl-1"
     >
-      <button
-        type="button"
-        aria-label={`Drag step ${index + 1} to reorder`}
-        onPointerDown={(e) => controls.start(e)}
-        className="grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-ink-faint hover:text-ink active:cursor-grabbing"
-      >
-        <DotsSixVertical size={18} />
-      </button>
-      <span className="w-4 shrink-0 text-center font-mono text-xs text-ink-faint">{index + 1}</span>
-      <span
-        className="size-2 shrink-0 rounded-full"
-        style={{ background: objectTone(step.object) }}
-        aria-hidden
-      />
-      <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-1.5">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={`Drag step ${index + 1} to reorder`}
+          onPointerDown={(e) => controls.start(e)}
+          className="grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-ink-faint hover:text-ink active:cursor-grabbing"
+        >
+          <DotsSixVertical size={18} />
+        </button>
+        <span className="w-4 shrink-0 text-center font-mono text-xs text-ink-faint">
+          {index + 1}
+        </span>
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ background: objectTone(step.object) }}
+          aria-hidden
+        />
         <select
           aria-label={`Step ${index + 1} object`}
-          className={`${selectClass} col-span-2`}
+          className={`${selectClass} flex-1`}
           value={step.object}
           onChange={(e) => changeObject(e.target.value)}
         >
@@ -66,6 +68,16 @@ export function StepRow({ step, index, objects, containers, onEdit, onRemove }: 
             <option key={o}>{o}</option>
           ))}
         </select>
+        <button
+          type="button"
+          aria-label={`Remove step ${index + 1}`}
+          onClick={onRemove}
+          className="grid size-7 shrink-0 place-items-center rounded-md text-ink-faint transition-colors hover:bg-white/10 hover:text-danger active:scale-95"
+        >
+          <X size={16} />
+        </button>
+      </div>
+      <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-1.5 pl-9">
         <select
           aria-label={`Step ${index + 1} action`}
           className={selectClass}
@@ -92,14 +104,6 @@ export function StepRow({ step, index, objects, containers, onEdit, onRemove }: 
           </select>
         )}
       </div>
-      <button
-        type="button"
-        aria-label={`Remove step ${index + 1}`}
-        onClick={onRemove}
-        className="grid size-7 shrink-0 place-items-center rounded-md text-ink-faint transition-colors hover:bg-white/10 hover:text-danger active:scale-95"
-      >
-        <X size={16} />
-      </button>
     </Reorder.Item>
   )
 }

@@ -1,0 +1,26 @@
+{
+  "name": "dishes_wash",
+  "notes": "AI-generated footage (anchored steps). Steps hand-labeled from the final video.",
+  "size": [
+    1280,
+    720
+  ],
+  "prompts": {
+    "yellow sponge": "yellow sponge",
+    "white plate": "white plate",
+    "blue plate": "blue plate"
+  },
+  "container_prompts": {},
+  "steps": [
+    {
+      "object": "yellow sponge",
+      "action": "wipe",
+      "target": "white plate"
+    },
+    {
+      "object": "yellow sponge",
+      "action": "wipe",
+      "target": "blue plate"
+    }
+  ]
+}

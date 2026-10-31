@@ -87,7 +87,7 @@ MAX_ATTEMPTS = 3
 
 
 def check_turn(
-    video: Path, prompts: list[str], step_prompt: str, container_prompt: str
+    video: Path, prompts: list[str], step_prompt: str, container_prompt: str | None
 ) -> list[str]:
     """Report what is wrong with a turn's last frame, using SAM; an empty list means it is fine.
 
@@ -105,7 +105,7 @@ def check_turn(
             found = meta.segment_image(last.read_bytes(), prompt)
             if len(found) != 1:
                 problems.append(f"{prompt}: seen {len(found)} times")
-            elif prompt == step_prompt:
+            elif prompt == step_prompt and container_prompt:
                 boxes = meta.segment_image(first.read_bytes(), container_prompt)
                 if not boxes:
                     continue
@@ -129,6 +129,7 @@ def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
     make_image(client, [f"{spec['_style']} {clip['scene']}"], start)
     labels = json.loads((OUT / f"{name}.json").read_text())
     object_prompts = list(labels["prompts"].values())
+    motion = clip.get("motion", spec["_motion"])  # chores other than put-and-place differ
     previous: str | None = None
     video = work / "turn0.mp4"
     for i, step in enumerate(clip["steps"]):
@@ -140,20 +141,21 @@ def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             print(f"{name}: turn {i + 1}/{len(clip['steps'])} attempt {attempt}", flush=True)
             if previous is None:
-                text = f"{step['motion']} {spec['_motion']} The clip lasts 10 seconds."
+                text = f"{step['motion']} {motion} The clip lasts 10 seconds."
                 interaction = _create(client, [_image(start), {"type": "text", "text": text}], None)
             else:
                 text = (
-                    f"Extend this video. {step['motion']} {spec['_motion']} The same hand, same "
+                    f"Extend this video. {step['motion']} {motion} The same hand, same "
                     "sleeve and same camera as before. Keep everything else the same."
                 )
                 interaction = _create(client, [{"type": "text", "text": text}], previous)
             video.write_bytes(base64.b64decode(interaction.output_video.data))
+            placing = labels["steps"][i]["action"] == "place_in"
             problems = check_turn(
                 video,
                 object_prompts,
                 labels["prompts"][labels["steps"][i]["object"]],
-                next(iter(labels["container_prompts"].values())),
+                next(iter(labels["container_prompts"].values()), None) if placing else None,
             )
             if not problems:
                 break
@@ -173,7 +175,10 @@ def main() -> None:
     parser.add_argument("--only", nargs="*", help="Clip names to build (default: all).")
     args = parser.parse_args()
     load_env()
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client = genai.Client(
+        api_key=os.environ["GEMINI_API_KEY"],
+        http_options=types.HttpOptions(timeout=600_000),  # a hung call must not hang the run
+    )
     spec = json.loads((ROOT / "scripts" / "chore_prompts.json").read_text())
     for name, clip in spec["clips"].items():
         if not args.only or name in args.only:

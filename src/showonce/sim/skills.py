@@ -17,7 +17,7 @@ from showonce.sim.scene import LID_THICKNESS, TAB, SimWorld
 XY = tuple[float, float]
 Vec = NDArray[np.float64]
 
-CLEARANCE = 0.003  # a held sponge rides this far above the surface it cleans
+CLEARANCE = 0.01  # a held sponge rides this far above what it cleans, so it never drags it
 SPONGE_MARGIN = 0.005  # stains this close to the sponge's edge still count as wiped
 DROP_CLEARANCE = 0.09  # how far from other things a lid is put down
 LID_REACH_X, LID_REACH_Y = (0.36, 0.58), (-0.22, 0.22)  # where the arm can put a lid down

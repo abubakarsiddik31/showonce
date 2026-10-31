@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -112,6 +112,7 @@ class SimWorld:
             raise FileNotFoundError(f"{panda_xml} not found. Run scripts/fetch_assets.sh first.")
         self.block_names = [b.name for b in blocks]
         self._shapes = {b.name: b.shape for b in blocks}
+        self._rgb = {b.name: b.rgba[:3] for b in blocks}
         self._zones = {z.name: z for z in zones or []}
         spec = mujoco.MjSpec.from_file(str(panda_xml))
         self._build_scene(spec, blocks, zones or [], set(dirty))
@@ -234,7 +235,13 @@ class SimWorld:
         shape, rgba = block.shape, list(block.rgba)
         hx, hy, hz = shape.half
         # Objects collide with the table (bit 1) and with trays (bit 2).
-        physics = {"mass": 0.05, "friction": [1.2, 0.01, 0.0005], "condim": 4, "conaffinity": 3}
+        # Flat dishes weigh enough to stay put when something brushes past them.
+        mass = (
+            max(0.05, 600 * math.prod(2 * h for h in shape.half))
+            if hz < 0.3 * min(hx, hy)
+            else 0.05
+        )
+        physics = {"mass": mass, "friction": [1.2, 0.01, 0.0005], "condim": 4, "conaffinity": 3}
         if shape.openable:
             SimWorld._add_packet_body(body, block, physics)
             return
@@ -250,7 +257,9 @@ class SimWorld:
             SimWorld._add_handle(body, block)
 
     @staticmethod
-    def _add_packet_body(body: mujoco.MjsBody, block: BlockDef, physics: dict[str, object]) -> None:
+    def _add_packet_body(
+        body: mujoco.MjsBody, block: BlockDef, physics: Mapping[str, object]
+    ) -> None:
         """A bag open at the top: floor and four walls, with a few chips inside."""
         hx, hy, hz = block.shape.half
         rgba, t = list(block.rgba), 0.002
@@ -371,6 +380,9 @@ class SimWorld:
     def reset(self) -> None:
         mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
         mujoco.mj_forward(self.model, self.data)
+
+    def color(self, name: str) -> tuple[float, float, float]:
+        return (self._rgb[name][0], self._rgb[name][1], self._rgb[name][2])
 
     def shape(self, name: str) -> Shape:
         return self._shapes[name]

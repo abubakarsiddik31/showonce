@@ -136,7 +136,7 @@ def sim_prompts(name: str, profile: ObjectProfile) -> list[str]:
     elif profile.openable:
         phrases = [f"{word} packet", f"{word} box"]
     elif profile.shape == "cylinder" and profile.height < 0.4 * profile.width:
-        phrases = [f"{word} plate", "round plate", f"{word} round object"]
+        phrases = [f"{word} plate", f"{word} circle", f"{word} round object", "round plate"]
     else:
         noun = {"box": "block", "cylinder": "cylinder", "sphere": "ball"}[profile.shape]
         phrases = [f"{word} {noun}"]

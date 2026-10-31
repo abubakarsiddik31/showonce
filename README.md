@@ -63,8 +63,11 @@ in the simulator. These are AI-generated test clips, not real footage.
 | dishes_into_rack | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
 | fruit_into_bowl | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
 | toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
+| dishes_wash | 2 of 2 correct (wipe each plate) | Muse Spark (a wipe is not visible to tracking) | 2/2 steps, 28 of 28 stains | 2/2 steps, 28 of 28 stains |
+| chips_open | 1 of 1 correct (open the red bag) | Muse Spark | lid off | lid off |
 
-SAM position error: 0.2 to 3.3 mm across all three clips.
+SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds
+2, 5 and 11, and the chips clip on 11.
 
 ## How objects are modelled
 
@@ -109,8 +112,10 @@ uv run mypy            # type check
 
 ## Sample clips
 
-`samples/` holds three 30 s test clips of a tabletop task, each with a scene file naming the
-objects and containers: `toys_into_bin`, `dishes_into_rack` and `fruit_into_bowl`. They are
+`samples/` holds five test clips of a tabletop task, each with a scene file naming the
+objects and containers: `toys_into_bin`, `dishes_into_rack` and `fruit_into_bowl` (30 s,
+put-and-place), `dishes_wash` (20 s, scrubbing two stained plates with a sponge) and
+`chips_open` (10 s, tearing open a bag of chips next to an untouched packet). They are
 AI-generated test footage (see `scripts/generate_videos.py`, a development tool that is not part
 of the product), not real recordings. Put real phone clips next to them with a scene file of
 the same shape.

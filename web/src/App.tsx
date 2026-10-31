@@ -136,13 +136,13 @@ export default function App() {
         )}
 
         {samples.isPending ? (
-          <main className="grid flex-1 gap-10 py-10 md:grid-cols-2 xl:grid-cols-[5fr_3fr_4fr]">
+          <main className="grid flex-1 gap-10 py-10 md:grid-cols-2 xl:grid-cols-[9fr_7fr_8fr]">
             <Skeleton className="aspect-video w-full rounded-2xl" />
             <Skeleton className="h-64 w-full rounded-2xl" />
             <Skeleton className="aspect-video w-full rounded-2xl" />
           </main>
         ) : sample ? (
-          <main className="grid flex-1 gap-x-10 gap-y-14 py-10 md:grid-cols-2 xl:grid-cols-[5fr_3fr_4fr]">
+          <main className="grid flex-1 gap-x-10 gap-y-14 py-10 md:grid-cols-2 xl:grid-cols-[9fr_7fr_8fr]">
             <TeachPanel
               sample={sample}
               job={learnJob.data}

@@ -61,3 +61,7 @@ export function objectTone(name: string): string {
 
 export const cn = (...parts: Array<string | false | null | undefined>): string =>
   parts.filter(Boolean).join(' ')
+
+/** plural(1, 'step') -> "1 step", plural(2, 'step') -> "2 steps" */
+export const plural = (count: number, noun: string): string =>
+  `${count} ${noun}${count === 1 ? '' : 's'}`
