@@ -16,3 +16,4 @@ samples/synthetic/
 # Private planning docs
 .dev/
 
+.worktrees/
