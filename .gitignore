@@ -12,3 +12,6 @@ assets/mujoco_menagerie/
 .coverage
 .DS_Store
 samples/synthetic/
+
+# Private planning docs
+.dev/

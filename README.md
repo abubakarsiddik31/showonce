@@ -4,7 +4,7 @@ Film a tabletop task once. A simulated Franka Panda arm repeats it, including fr
 
 Built for the Meta Global AI Developer Hackathon 2026 (indie track, "Push the Frontier").
 
-> Status: work in progress. See [docs/PLAN.md](docs/PLAN.md) for the plan and [docs/PRD.md](docs/PRD.md) for the full spec.
+> Status: work in progress. See [docs/PLAN.md](docs/PLAN.md) for the plan and [docs/FINDINGS.md](docs/FINDINGS.md) for measured results.
 
 ## How it works
 
@@ -56,7 +56,7 @@ src/showonce/
   sim/             MuJoCo scene, controller, executor
   synth/           synthetic top-down demo clips with ground truth
 tests/             unit tests
-docs/              PRD and delivery plan
+docs/              delivery plan and findings log
 ```
 
 ## License
