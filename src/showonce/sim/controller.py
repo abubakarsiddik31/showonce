@@ -123,6 +123,14 @@ class PandaController:
     def go_home(self) -> None:
         self._move_joints(self.q_home)
 
+    def reset_to_home(self) -> None:
+        """Put the arm straight back in its home pose, without moving (nothing is recorded)."""
+        data = self.world.data
+        data.qpos[:7] = self.q_home
+        data.qvel[:7] = 0.0
+        data.ctrl[:7] = self.q_home
+        mujoco.mj_forward(self.world.model, data)
+
     def park(self) -> None:
         """Swing the arm out of the top camera's view."""
         self._move_joints(Q_PARK)

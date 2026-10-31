@@ -107,8 +107,8 @@ def replay(
     layout = Layout(truth, regions, scene.profiles)
     world: SimWorld = build_world(layout)
     recorder = SimRecorder(world) if record_to else None
-    controller = PandaController(world, on_step=recorder.capture if recorder else None)
-    controller.park()
+    controller = PandaController(world)
+    controller.park()  # out of the top camera's view; none of this is recorded
     perceived = None
     errors: dict[str, float] = {}
     if not oracle:
@@ -116,7 +116,10 @@ def replay(
             raise ValueError("A Meta client is required unless oracle=True")
         perceived = perceive_blocks(client, world, scene.prompts_for_sim, calibration)
         errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
-    controller.go_home()
+    controller.reset_to_home()  # the video opens on the arm ready, not swinging in from the side
+    if recorder:
+        controller.on_step = recorder.capture
+        recorder.capture()
     step_frames: list[int] = []
 
     def step_done(index: int, text: str) -> None:
