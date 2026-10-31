@@ -181,6 +181,8 @@ def demo(
     else:
         console.print("[green]Muse Spark read the same steps.[/green]")
     learned.program.save(folder / "program.json")
+    if learned.scene is not None:
+        (folder / "scene.json").write_text(learned.scene.model_dump_json(indent=2))
     result = run_in_sim(learned.program, learned.layout, folder / "sim.mp4")
     table = Table(title="Robot result (simulator ground truth)")
     for column in ("step", "ok", "detail"):
@@ -207,6 +209,7 @@ def eval_demo(
     from showonce.evaluate import load_truth
     from showonce.learn import LearnError
     from showonce.scene_spec import SceneSpec
+    from showonce.sim.perceive import NotFoundError
 
     @dataclass
     class Row:
@@ -224,7 +227,7 @@ def eval_demo(
             spec = SceneSpec.load(truth_path)
             try:
                 learned = learn_from_video(client, truth_path.with_suffix(".mp4"), spec)
-            except LearnError as exc:
+            except (LearnError, NotFoundError) as exc:
                 rows.append(Row(truth["name"], False, False, note=str(exc)))
                 continue
             expected = [(s["object"], s["action"], s["target"]) for s in truth["steps"]]
@@ -313,7 +316,7 @@ def eval_replay(
             passed = 0
             errors: list[float] = []
             for seed in range(1, layouts + 1):
-                result = run_replay(client, learned.program, spec, seed)
+                result = run_replay(client, learned.program, learned.scene or spec, seed)
                 passed += result.success
                 errors.extend(result.perception_error_mm.values())
             rows.append(

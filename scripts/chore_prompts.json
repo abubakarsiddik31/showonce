@@ -1,0 +1,30 @@
+{
+  "_style": "Top-down overhead photo, camera pointing straight down at a plain light wooden table, soft even daylight, sharp focus, realistic, 16:9 landscape. No text, no people visible.",
+  "_motion": "Fixed overhead camera that never moves, zooms or cuts. A single person's hand and forearm enter from the bottom edge of the frame, pick up the object slowly and deliberately, set it down in its final position, then leave the frame. Every other object stays exactly where it is and nothing appears, disappears or changes. No text, no music.",
+  "clips": {
+    "dishes_into_rack": {
+      "scene": "Three mugs, one red, one blue and one green, sit spread apart on the left half of the table, upright with handles pointing right. A gray plastic dish drying tray sits on the right half of the table, empty.",
+      "steps": [
+        {"edit": "Move the red mug into the gray dish drying tray, in its left slot. Keep everything else exactly the same.", "motion": "The hand picks up the red mug and puts it in the gray tray."},
+        {"edit": "Move the blue mug into the gray dish drying tray, next to the red mug. Keep everything else exactly the same.", "motion": "The hand picks up the blue mug and puts it in the gray tray next to the red mug."},
+        {"edit": "Move the green mug into the gray dish drying tray, next to the other two mugs. Keep everything else exactly the same.", "motion": "The hand picks up the green mug and puts it in the gray tray next to the other mugs."}
+      ]
+    },
+    "fruit_into_bowl": {
+      "scene": "A red apple, an orange and a yellow lemon sit spread apart on the left half of the table. A white ceramic bowl sits on the right half of the table, empty.",
+      "steps": [
+        {"edit": "Move the red apple into the white bowl. Keep everything else exactly the same.", "motion": "The hand picks up the red apple and puts it in the white bowl."},
+        {"edit": "Move the orange into the white bowl next to the apple. Keep everything else exactly the same.", "motion": "The hand picks up the orange and puts it in the white bowl."},
+        {"edit": "Move the yellow lemon into the white bowl. Keep everything else exactly the same.", "motion": "The hand picks up the yellow lemon and puts it in the white bowl."}
+      ]
+    },
+    "toys_into_bin": {
+      "scene": "A red wooden toy block, a green wooden toy block and a blue wooden toy block sit spread apart on the left half of the table. An open brown cardboard box, seen from above, sits on the right half of the table, empty.",
+      "steps": [
+        {"edit": "Move the red block into the cardboard box. Keep everything else exactly the same.", "motion": "The hand picks up the red block and puts it in the cardboard box."},
+        {"edit": "Move the green block into the cardboard box. Keep everything else exactly the same.", "motion": "The hand picks up the green block and puts it in the cardboard box."},
+        {"edit": "Move the blue block into the cardboard box. Keep everything else exactly the same.", "motion": "The hand picks up the blue block and puts it in the cardboard box."}
+      ]
+    }
+  }
+}

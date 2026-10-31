@@ -1,0 +1,38 @@
+{
+  "name": "dishes_into_rack",
+  "notes": "AI-generated footage (anchored steps). Steps hand-labeled from the final video.",
+  "size": [
+    1280,
+    720
+  ],
+  "prompts": {
+    "red mug": "red mug",
+    "blue mug": "blue mug",
+    "green mug": "green mug"
+  },
+  "sim_prompts": {
+    "red mug": "red block",
+    "blue mug": "blue block",
+    "green mug": "green block"
+  },
+  "container_prompts": {
+    "tray": "gray tray"
+  },
+  "steps": [
+    {
+      "object": "red mug",
+      "action": "place_in",
+      "target": "tray"
+    },
+    {
+      "object": "blue mug",
+      "action": "place_in",
+      "target": "tray"
+    },
+    {
+      "object": "green mug",
+      "action": "place_in",
+      "target": "tray"
+    }
+  ]
+}

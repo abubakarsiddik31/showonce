@@ -1,0 +1,38 @@
+{
+  "name": "fruit_into_bowl",
+  "notes": "AI-generated footage (anchored steps). Steps hand-labeled from the final video.",
+  "size": [
+    1280,
+    720
+  ],
+  "prompts": {
+    "red apple": "red apple",
+    "orange": "orange fruit",
+    "yellow lemon": "yellow lemon"
+  },
+  "sim_prompts": {
+    "red apple": "red block",
+    "orange": "orange block",
+    "yellow lemon": "yellow block"
+  },
+  "container_prompts": {
+    "bowl": "white bowl"
+  },
+  "steps": [
+    {
+      "object": "red apple",
+      "action": "place_in",
+      "target": "bowl"
+    },
+    {
+      "object": "orange",
+      "action": "place_in",
+      "target": "bowl"
+    },
+    {
+      "object": "yellow lemon",
+      "action": "place_in",
+      "target": "bowl"
+    }
+  ]
+}

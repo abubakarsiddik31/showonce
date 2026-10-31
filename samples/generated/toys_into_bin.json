@@ -1,0 +1,38 @@
+{
+  "name": "toys_into_bin",
+  "notes": "AI-generated footage (anchored steps). Steps hand-labeled from the final video.",
+  "size": [
+    1280,
+    720
+  ],
+  "prompts": {
+    "red block": "red block",
+    "green block": "green block",
+    "blue block": "blue block"
+  },
+  "sim_prompts": {
+    "red block": "red block",
+    "green block": "green block",
+    "blue block": "blue block"
+  },
+  "container_prompts": {
+    "box": "cardboard box"
+  },
+  "steps": [
+    {
+      "object": "red block",
+      "action": "place_in",
+      "target": "box"
+    },
+    {
+      "object": "green block",
+      "action": "place_in",
+      "target": "box"
+    },
+    {
+      "object": "blue block",
+      "action": "place_in",
+      "target": "box"
+    }
+  ]
+}

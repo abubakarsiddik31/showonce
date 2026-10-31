@@ -15,3 +15,7 @@ samples/synthetic/
 
 # Private planning docs
 .dev/
+samples/generated/*.mp4
+samples/generated/*.prompt.txt
+samples/generated/_work/
+

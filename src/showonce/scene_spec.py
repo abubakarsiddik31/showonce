@@ -30,6 +30,8 @@ class SceneSpec(BaseModel):
     prompts: dict[str, str]
     sim_prompts: dict[str, str] | None = None  # prompts for the simulated cubes, if different
     containers: list[ContainerSpec] = Field(default_factory=list)
+    # Containers located by SAM on the clip's first frame: name -> prompt (e.g. "gray tray").
+    container_prompts: dict[str, str] = Field(default_factory=dict)
     size: tuple[int, int] | None = None
 
     model_config = {"extra": "ignore"}

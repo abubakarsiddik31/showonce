@@ -13,9 +13,10 @@ from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
 from showonce.perception.pipeline import Observation, observe
 from showonce.program import Step, TaskProgram
-from showonce.scene_spec import SceneSpec
+from showonce.scene_spec import ContainerSpec, SceneSpec
 from showonce.sim.controller import PandaController
 from showonce.sim.executor import Layout, Region, StepCheck, build_world, execute, verify
+from showonce.sim.perceive import NotFoundError
 from showonce.sim.record import SimRecorder
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class Learned:
     source: str = "geometry"  # "geometry", or "muse_spark" when geometry could not explain a move
     semantic: list[Step] | None = None  # Muse Spark's independent reading, if it answered
     discrepancies: list[str] = field(default_factory=list)
+    scene: SceneSpec | None = None  # the scene with containers resolved to pixel rectangles
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +60,34 @@ def regions_from_scene(scene: SceneSpec, calibration: Calibration) -> list[Regio
     return regions
 
 
+def resolve_containers(client: MetaClient, video: Path, scene: SceneSpec) -> list[ContainerSpec]:
+    """Fixed containers plus any located by SAM on the first frame (before a hand appears)."""
+    found = list(scene.containers)
+    if not scene.container_prompts:
+        return found
+    capture = cv2.VideoCapture(str(video))
+    try:
+        ok, frame = capture.read()
+    finally:
+        capture.release()
+    if not ok:
+        raise RuntimeError(f"Could not read the first frame of {video}")
+    ok, encoded = cv2.imencode(".png", frame)
+    for name, prompt in scene.container_prompts.items():
+        detections = client.segment_image(encoded.tobytes(), prompt)
+        if not detections:
+            raise NotFoundError(f"SAM found no '{prompt}' for container {name}")
+        box = max(detections, key=lambda d: d.box.area).box
+        found.append(
+            ContainerSpec(
+                name=name,
+                center=box.center,
+                size=(box.x2 - box.x1, box.y2 - box.y1),
+            )
+        )
+    return found
+
+
 def _read_with_muse_spark(client: MetaClient, video: Path, scene: SceneSpec) -> list[Step] | None:
     try:
         return client.plan_video(
@@ -76,6 +106,7 @@ def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learn
     """
     width, height = scene.size or frame_size(video)
     calibration = Calibration.for_frame(width, height)
+    scene = scene.model_copy(update={"containers": resolve_containers(client, video, scene)})
     obs = observe(client, video, scene.prompts)
     semantic = _read_with_muse_spark(client, video, scene)
     source = "geometry"
@@ -92,7 +123,7 @@ def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learn
         name: calibration.to_table(rests[0].center) for name, rests in obs.rests.items() if rests
     }
     layout = Layout(objects, regions_from_scene(scene, calibration))
-    return Learned(program, layout, obs, source, semantic, problems)
+    return Learned(program, layout, obs, source, semantic, problems, scene)
 
 
 def run_in_sim(program: TaskProgram, layout: Layout, record_to: Path | None = None) -> RunResult:
