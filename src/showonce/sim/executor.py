@@ -7,11 +7,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from showonce.geometry import RELATION_UNIT
 from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
-from showonce.sim.skills import open_package, wipe
+from showonce.sim.skills import free_spot, open_package, wipe
 
 SLOT_MARGIN = 0.004  # clearance between a placed object and the rim
 # Where objects go in a container, as fractions of the free half-width: corners, then center.
@@ -184,6 +185,34 @@ def execute(
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
+        if step.action == "place_near":
+            if step.target not in world.block_names:
+                raise ExecutionError(f"Unknown neighbour '{step.target}' in step: {step}")
+            neighbour = where(step.target)
+            others = [
+                (tuple(where(n)[:2]), world.shape(n).footprint)
+                for n in world.block_names
+                if n not in (step.object, step.target)
+            ]
+            keep_out = [(r.center, (r.size[0] + 0.05, r.size[1] + 0.05)) for r in regions]
+            hx, hy, _ = world.shape(step.object).half
+            unit = RELATION_UNIT.get(step.relation or "next_to")
+            try:
+                near_xy = free_spot(
+                    (float(neighbour[0]), float(neighbour[1])), (hx, hy), others, keep_out, unit
+                )
+            except ValueError as exc:
+                raise ExecutionError(f"No free spot for '{step.object}': {exc}") from exc
+            controller.pick_place(
+                step.object, near_xy, 0.0, pick_at=where(step.object) if belief else None
+            )
+            if belief is not None:
+                belief[step.object] = np.array(
+                    [near_xy[0], near_xy[1], world.half_height(step.object)]
+                )
+            if on_step_done is not None:
+                on_step_done(index, str(step))
+            continue
         if step.action == "stack_on":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown stack target '{step.target}' in step: {step}")
@@ -234,6 +263,17 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
             region = by_name[step.target]
             dx, dy = abs(pos[0] - region.center[0]), abs(pos[1] - region.center[1])
             ok = dx <= region.size[0] / 2 + 0.01 and dy <= region.size[1] / 2 + 0.01
+            checks.append(
+                StepCheck(str(step), bool(ok), f"offset ({dx * 1000:.0f}, {dy * 1000:.0f}) mm")
+            )
+        elif step.action == "place_near":
+            near = world.block_pos(step.target)
+            dx, dy = pos[0] - near[0], pos[1] - near[1]
+            band = world.shape(step.object).radius + world.shape(step.target).radius + 0.04
+            ok = (dx * dx + dy * dy) ** 0.5 <= band
+            if ok and step.relation and step.relation != "next_to":
+                ux, uy = RELATION_UNIT[step.relation]
+                ok = dx * ux + dy * uy > 0  # on the side the relation names
             checks.append(
                 StepCheck(str(step), bool(ok), f"offset ({dx * 1000:.0f}, {dy * 1000:.0f}) mm")
             )

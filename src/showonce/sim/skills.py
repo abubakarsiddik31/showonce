@@ -90,6 +90,57 @@ def wipe(
     controller.release(tool, tool_at + np.array([0.0, 0.0, 0.002]))
 
 
+REACH_X, REACH_Y = (0.20, 0.62), (-0.28, 0.28)  # where the arm can set something down
+
+
+def free_spot(
+    anchor: XY,
+    half: tuple[float, float],
+    others: list[tuple[XY, float]],
+    keep_out: list[tuple[XY, XY]],
+    direction: XY | None = None,
+) -> XY:
+    """A clear place to set something down: beside ``anchor`` at ``half``'s footprint.
+
+    ``direction`` is a unit vector away from the anchor (a relation's world unit); ``None``
+    tries all four sides. Raises ``ValueError`` when nowhere within arm reach is clear.
+    """
+    reach_x = max(half[0], 0.02)
+    reach_y = max(half[1], 0.02)
+    unit = (direction[0], direction[1]) if direction and direction != (0.0, 0.0) else None
+    dirs = [unit] if unit else [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]
+    gaps = (0.02, 0.05, 0.08, 0.11)
+    best, best_room = None, -math.inf
+    for d in dirs:
+        dx, dy = d[0] * (reach_x if d[0] else reach_y), d[1] * (reach_y if d[1] else reach_x)
+        for gap in gaps:
+            spot = (anchor[0] + dx + d[0] * gap, anchor[1] + dy + d[1] * gap)
+            if not (REACH_X[0] <= spot[0] <= REACH_X[1] and REACH_Y[0] <= spot[1] <= REACH_Y[1]):
+                continue
+            room = min(
+                [
+                    max(abs(spot[0] - p[0]) - r - half[0], abs(spot[1] - p[1]) - r - half[1])
+                    for p, r in others
+                ]
+                + [1.0]
+            )
+            for centre, size in keep_out:
+                room = min(
+                    room,
+                    max(
+                        abs(spot[0] - centre[0]) - size[0] / 2,
+                        abs(spot[1] - centre[1]) - size[1] / 2,
+                    ),
+                )
+            if gap != 0:
+                room -= gap * 0.5  # the closer beside, the better
+            if room > best_room:
+                best, best_room = spot, room
+    if best is None:
+        raise ValueError(f"No free place beside {anchor}")
+    return best
+
+
 def _drop_spot(
     bag: XY,
     half: tuple[float, float],
