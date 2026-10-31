@@ -64,12 +64,22 @@ in the simulator. These are AI-generated test clips, not real footage.
 | fruit_into_bowl | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
 | toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
 
-SAM position error: 0.2 to 1.8 mm for the cubes, 0.7 to 3.7 mm for the mugs.
+SAM position error: 0.2 to 3.3 mm across all three clips.
 
-The simulator models what the clip shows. Objects named "mug" or "cup" are real mugs (a 6.4 cm
-body with a handle, grasped by the body), and every container is a shallow rimmed tray sized
-from the box SAM found around it in the clip, so the dishes clip fills a 16.7 cm tray with
-three mugs. Anything else is a 4 cm cube. A first run of the mugs also passed on seeds 5 and 11.
+## How objects are modelled
+
+Any object in a clip is reduced to a box, cylinder or sphere with a real size, a colour and an
+optional handle (`src/showonce/objects.py`). When learning, Muse Spark looks at the first frame
+and describes each object (shape, width, depth, height, handle), and the pixels give the colour
+of anything whose name has no colour word. The profile is saved with the scene, so the simulator
+rebuilds a mug as a mug, an apple as a ball and a book as a flat box, whatever it is called.
+Names are only a fallback guess when Muse Spark cannot answer.
+
+- Containers are shallow rimmed trays sized from the box SAM found around them in the clip.
+- The sim gripper opens 8 cm, so wider objects are scaled down to fit. Stacking on a ball is
+  refused with a clear error.
+- SAM finds each object in the sim by a phrase built from its profile ("red mug", "orange
+  ball"), so two objects with the same colour and shape would be confused.
 
 ## Development
 

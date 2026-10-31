@@ -10,6 +10,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from showonce.objects import ObjectProfile, profile_from_name, sim_prompt
+
 
 class ContainerSpec(BaseModel):
     name: str
@@ -28,7 +30,8 @@ class SceneSpec(BaseModel):
 
     name: str = "task"
     prompts: dict[str, str]
-    sim_prompts: dict[str, str] | None = None  # prompts for the simulated cubes, if different
+    sim_prompts: dict[str, str] | None = None  # override the prompts used to find sim objects
+    profiles: dict[str, ObjectProfile] = Field(default_factory=dict)  # filled in when learning
     containers: list[ContainerSpec] = Field(default_factory=list)
     # Containers located by SAM on the clip's first frame: name -> prompt (e.g. "gray tray").
     container_prompts: dict[str, str] = Field(default_factory=dict)
@@ -36,9 +39,13 @@ class SceneSpec(BaseModel):
 
     model_config = {"extra": "ignore"}
 
+    def profile(self, name: str) -> ObjectProfile:
+        return self.profiles.get(name) or profile_from_name(name)
+
     @property
     def prompts_for_sim(self) -> dict[str, str]:
-        return self.sim_prompts or self.prompts
+        """How SAM finds each object in the simulator, where it is a plain primitive."""
+        return self.sim_prompts or {n: sim_prompt(n, self.profile(n)) for n in self.prompts}
 
     @classmethod
     def load(cls, path: Path) -> SceneSpec:

@@ -7,7 +7,7 @@ import random
 from dataclasses import dataclass
 
 from showonce.sim.controller import IKError, PandaController
-from showonce.sim.scene import BLOCK_HALF, BlockDef, SimWorld
+from showonce.sim.scene import BLOCK_HALF, SimWorld, block_def
 
 XY_TOL = 0.015
 Z_TOL = 0.006
@@ -34,7 +34,7 @@ def run_stack_test(runs: int = 10, seed: int = 0) -> list[StackResult]:
     rng = random.Random(seed)
     results: list[StackResult] = []
     for i in range(1, runs + 1):
-        world = SimWorld([BlockDef("a", (0.85, 0.2, 0.2, 1)), BlockDef("b", (0.2, 0.4, 0.85, 1))])
+        world = SimWorld([block_def("a"), block_def("b")])
         pos_a, pos_b = _random_layout(rng)
         world.set_block("a", pos_a)
         world.set_block("b", pos_b)

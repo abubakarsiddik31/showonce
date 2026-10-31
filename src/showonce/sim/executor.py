@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
@@ -41,12 +42,13 @@ class Layout:
 
     objects: dict[str, XY]
     regions: list[Region] = field(default_factory=list)
+    profiles: dict[str, ObjectProfile] = field(default_factory=dict)  # name -> shape; else guessed
 
 
 def build_world(layout: Layout) -> SimWorld:
     """Create a world with one object per name and one tray per region."""
     world = SimWorld(
-        [block_def(name) for name in layout.objects],
+        [block_def(name, layout.profiles.get(name)) for name in layout.objects],
         [ZoneDef(r.name, r.center, r.size) for r in layout.regions],
     )
     for name, xy in layout.objects.items():
@@ -86,9 +88,13 @@ def execute(
             raise ExecutionError(f"Unknown object '{step.object}' in step: {step}")
         if belief is not None and step.object not in belief:
             raise ExecutionError(f"'{step.object}' was not found by perception")
+        if world.shape(step.object).grasp_width > MAX_GRASP_WIDTH + 1e-6:
+            raise ExecutionError(f"'{step.object}' is too wide for the gripper")
         if step.action == "stack_on":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown stack target '{step.target}' in step: {step}")
+            if world.shape(step.target).kind == "sphere":
+                raise ExecutionError(f"Cannot stack on '{step.target}': it is round")
             below = where(step.target)
             target_xy: XY = (float(below[0]), float(below[1]))
             surface_z = float(below[2]) + world.half_height(step.target)

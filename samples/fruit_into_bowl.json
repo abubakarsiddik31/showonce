@@ -10,11 +10,6 @@
     "orange": "orange fruit",
     "yellow lemon": "yellow lemon"
   },
-  "sim_prompts": {
-    "red apple": "red block",
-    "orange": "orange block",
-    "yellow lemon": "yellow block"
-  },
   "container_prompts": {
     "bowl": "white bowl"
   },

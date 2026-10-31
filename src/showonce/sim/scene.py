@@ -11,9 +11,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from showonce.geometry import WORK_CENTER_X, WORK_WIDTH_Y
+from showonce.objects import ObjectProfile, ShapeKind, color_of, profile_from_name
 
 DEFAULT_ASSET_DIR = Path("assets/mujoco_menagerie/franka_emika_panda")
-BLOCK_HALF = 0.02  # 4 cm cubes
+BLOCK_HALF = 0.02  # half the edge of a default 4 cm cube
 TRAY_FLOOR = 0.004  # thickness of a container's floor
 RIM_THICKNESS = 0.006
 RIM_HEIGHT = 0.012  # low enough that a mug handle clears it
@@ -23,50 +24,57 @@ CAMERA_HEIGHT = 0.9
 CAMERA_ASPECT = 16 / 9  # render size must keep this aspect for the calibration to hold
 CAMERA_FOVY_DEG = math.degrees(2 * math.atan(WORK_WIDTH_Y / 2 / CAMERA_ASPECT / CAMERA_HEIGHT))
 
-_COLORS: dict[str, tuple[float, float, float, float]] = {
-    "red": (0.85, 0.2, 0.2, 1),
-    "green": (0.2, 0.7, 0.3, 1),
-    "blue": (0.2, 0.4, 0.85, 1),
-    "yellow": (0.95, 0.8, 0.2, 1),
-    "orange": (0.92, 0.36, 0.05, 1),
-    "purple": (0.55, 0.3, 0.75, 1),
-    "pink": (0.95, 0.5, 0.7, 1),
-    "white": (0.95, 0.95, 0.95, 1),
-}
-
 
 @dataclass(frozen=True, slots=True)
 class Shape:
-    """Physical size of an object kind, in meters."""
+    """An object's physical primitive, in meters."""
 
-    kind: str
-    half_height: float  # center height above the surface it rests on
-    radius: float  # footprint radius of the body alone
-    footprint: float  # footprint radius including any handle
-    bbox_offset: tuple[float, float] = (0.0, 0.0)  # top-camera box center minus body center
+    kind: ShapeKind
+    half: tuple[float, float, float]  # half extents along x, y, z
+    handle: float = 0.0  # how far a handle sticks out along +y; the gripper closes along x
+
+    @property
+    def half_height(self) -> float:
+        """Center height above the surface the object rests on."""
+        return self.half[2]
+
+    @property
+    def radius(self) -> float:
+        """Footprint radius of the body alone."""
+        return max(self.half[0], self.half[1])
+
+    @property
+    def footprint(self) -> float:
+        """Footprint radius including any handle."""
+        return self.radius + self.handle
+
+    @property
+    def grasp_width(self) -> float:
+        return 2 * self.half[0]
+
+    @property
+    def bbox_offset(self) -> tuple[float, float]:
+        """Where the top camera's box center sits relative to the body center."""
+        return (0.0, self.handle / 2)
 
 
-CUBE = Shape("cube", BLOCK_HALF, BLOCK_HALF, BLOCK_HALF)
-# The handle sits on +y: the gripper closes along x, so it never touches the handle.
-MUG_RADIUS, MUG_HALF, HANDLE_REACH = 0.032, 0.04, 0.016
-MUG = Shape("mug", MUG_HALF, MUG_RADIUS, MUG_RADIUS + HANDLE_REACH, (0.0, HANDLE_REACH / 2))
-_MUG_WORDS = ("mug", "cup")
+def shape_of(profile: ObjectProfile) -> Shape:
+    half = (profile.width / 2, profile.depth / 2, profile.height / 2)
+    handle = 0.5 * half[0] if profile.handle else 0.0
+    return Shape(profile.shape, half, handle)
 
 
 @dataclass(frozen=True, slots=True)
 class BlockDef:
     name: str
     rgba: tuple[float, float, float, float]
-    shape: Shape = CUBE
+    shape: Shape
 
 
-def block_def(name: str) -> BlockDef:
-    """Build an object from its name: a mug for "mug"/"cup", else a cube; colour from the name."""
-    shape = MUG if any(word in name.lower() for word in _MUG_WORDS) else CUBE
-    for word, rgba in _COLORS.items():
-        if word in name.lower():
-            return BlockDef(name, rgba, shape)
-    return BlockDef(name, (0.5, 0.5, 0.5, 1), shape)
+def block_def(name: str, profile: ObjectProfile | None = None) -> BlockDef:
+    """Build an object from its profile; without one, guess from the name."""
+    profile = profile or profile_from_name(name)
+    return BlockDef(name, (*color_of(name, profile), 1.0), shape_of(profile))
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,39 +195,40 @@ class SimWorld:
 
     @staticmethod
     def _add_object_geoms(body: mujoco.MjsBody, block: BlockDef) -> None:
+        shape, rgba = block.shape, list(block.rgba)
+        hx, hy, hz = shape.half
         # Objects collide with the table (bit 1) and with trays (bit 2).
         physics = {"mass": 0.05, "friction": [1.2, 0.01, 0.0005], "condim": 4, "conaffinity": 3}
-        if block.shape.kind == "cube":
-            body.add_geom(
-                name=f"{block.name}_geom",
-                type=mujoco.mjtGeom.mjGEOM_BOX,
-                size=[BLOCK_HALF] * 3,
-                rgba=list(block.rgba),
-                **physics,
-            )
-            return
-        body.add_geom(
-            name=f"{block.name}_geom",
-            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
-            size=[MUG_RADIUS, MUG_HALF, 0],
-            rgba=list(block.rgba),
-            **physics,
-        )
+        kind, size = {
+            "box": (mujoco.mjtGeom.mjGEOM_BOX, [hx, hy, hz]),
+            "cylinder": (mujoco.mjtGeom.mjGEOM_CYLINDER, [hx, hz, 0]),
+            "sphere": (mujoco.mjtGeom.mjGEOM_SPHERE, [hx, 0, 0]),
+        }[shape.kind]
+        if shape.kind == "sphere":  # rolling friction, so a released ball settles
+            physics |= {"condim": 6, "friction": [1.2, 0.01, 0.01]}
+        body.add_geom(name=f"{block.name}_geom", type=kind, size=size, rgba=rgba, **physics)
+        if shape.handle > 0:
+            SimWorld._add_handle(body, block)
+
+    @staticmethod
+    def _add_handle(body: mujoco.MjsBody, block: BlockDef) -> None:
+        """A glazed interior and a handle on +y, drawn only (no collisions)."""
+        shape, rgba = block.shape, list(block.rgba)
+        r, hz, reach = shape.half[0], shape.half[2], shape.handle
         visual = {"contype": 0, "conaffinity": 0, "mass": 0.001}
-        inside = [c * 0.6 for c in block.rgba[:3]] + [1.0]  # glazed interior, a shade darker
         body.add_geom(
             name=f"{block.name}_opening",
             type=mujoco.mjtGeom.mjGEOM_CYLINDER,
-            pos=[0, 0, MUG_HALF],
-            size=[MUG_RADIUS - 0.004, 0.0008, 0],
-            rgba=inside,
+            pos=[0, 0, hz],
+            size=[r - 0.004, 0.0008, 0],
+            rgba=[c * 0.6 for c in rgba[:3]] + [1.0],  # a shade darker than the outside
             **visual,
         )
-        arm_z, r = 0.022, MUG_RADIUS
-        parts = (  # the handle: one upright bar and two short stubs, on +y
-            ((0, r + HANDLE_REACH - 0.004, 0), (0.004, 0.004, arm_z)),
-            ((0, r + HANDLE_REACH / 2 - 0.002, arm_z), (0.004, HANDLE_REACH / 2 + 0.002, 0.004)),
-            ((0, r + HANDLE_REACH / 2 - 0.002, -arm_z), (0.004, HANDLE_REACH / 2 + 0.002, 0.004)),
+        arm_z = hz * 0.55
+        parts = (  # one upright bar and two short stubs
+            ((0, r + reach - 0.004, 0), (0.004, 0.004, arm_z)),
+            ((0, r + reach / 2 - 0.002, arm_z), (0.004, reach / 2 + 0.002, 0.004)),
+            ((0, r + reach / 2 - 0.002, -arm_z), (0.004, reach / 2 + 0.002, 0.004)),
         )
         for i, (pos, half) in enumerate(parts):
             body.add_geom(
@@ -227,7 +236,7 @@ class SimWorld:
                 type=mujoco.mjtGeom.mjGEOM_BOX,
                 pos=list(pos),
                 size=list(half),
-                rgba=list(block.rgba),
+                rgba=rgba,
                 **visual,
             )
 

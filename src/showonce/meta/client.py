@@ -14,7 +14,7 @@ import httpx
 
 from showonce.cache import JsonCache, hash_file, make_key
 from showonce.config import Settings
-from showonce.meta.muse import build_request, parse_steps, response_text
+from showonce.meta.muse import build_request, describe_request, parse_steps, response_text
 from showonce.meta.sam import Detection, parse_sam_text
 from showonce.program import Step
 
@@ -134,6 +134,20 @@ class MetaClient:
         text = response_text(resp.json())
         self.cache.set(key, {"text": text})
         return parse_steps(text)
+
+    def describe_objects(self, png: bytes, objects: list[str]) -> dict[str, dict[str, Any]]:
+        """Ask Muse Spark what primitive (shape, size, handle) each named object is."""
+        data_url = "data:image/png;base64," + base64.b64encode(png).decode()
+        body = describe_request(self.settings.plan_model, data_url, objects)
+        key = make_key("describe", hashlib.sha256(png).hexdigest(), json.dumps(objects))
+        cached = self.cache.get(key)
+        if cached is not None:
+            return dict(json.loads(str(cached["text"])))
+        resp = self._http.post("/responses", json=body)
+        self._raise_for_status(resp)
+        text = response_text(resp.json())
+        self.cache.set(key, {"text": text})
+        return dict(json.loads(text))
 
     def _stream_text(self, body: dict[str, Any]) -> Iterator[str]:
         """Yield ``response.output_text.delta`` chunks from a streaming Responses call."""

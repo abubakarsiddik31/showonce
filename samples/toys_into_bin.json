@@ -10,11 +10,6 @@
     "green block": "green block",
     "blue block": "blue block"
   },
-  "sim_prompts": {
-    "red block": "red block",
-    "green block": "green block",
-    "blue block": "blue block"
-  },
   "container_prompts": {
     "box": "cardboard box"
   },

@@ -12,6 +12,7 @@ from showonce.geometry import Calibration
 from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
 from showonce.perception.pipeline import Observation, observe
+from showonce.perception.profiles import encode_png, first_frame, profile_objects
 from showonce.program import Step, TaskProgram
 from showonce.scene_spec import ContainerSpec, SceneSpec
 from showonce.sim.controller import PandaController
@@ -65,16 +66,9 @@ def resolve_containers(client: MetaClient, video: Path, scene: SceneSpec) -> lis
     found = list(scene.containers)
     if not scene.container_prompts:
         return found
-    capture = cv2.VideoCapture(str(video))
-    try:
-        ok, frame = capture.read()
-    finally:
-        capture.release()
-    if not ok:
-        raise RuntimeError(f"Could not read the first frame of {video}")
-    ok, encoded = cv2.imencode(".png", frame)
+    png = encode_png(first_frame(video))
     for name, prompt in scene.container_prompts.items():
-        detections = client.segment_image(encoded.tobytes(), prompt)
+        detections = client.segment_image(png, prompt)
         if not detections:
             raise NotFoundError(f"SAM found no '{prompt}' for container {name}")
         box = max(detections, key=lambda d: d.box.area).box
@@ -107,6 +101,9 @@ def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learn
     width, height = scene.size or frame_size(video)
     calibration = Calibration.for_frame(width, height)
     scene = scene.model_copy(update={"containers": resolve_containers(client, video, scene)})
+    scene = scene.model_copy(
+        update={"profiles": profile_objects(client, first_frame(video), scene)}
+    )
     obs = observe(client, video, scene.prompts)
     semantic = _read_with_muse_spark(client, video, scene)
     source = "geometry"

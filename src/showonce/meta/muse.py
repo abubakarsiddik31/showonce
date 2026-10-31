@@ -43,6 +43,67 @@ def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, 
     }
 
 
+DESCRIBE_PROMPT = """\
+This photo is of a table, seen from above at an angle. Describe each of these objects as a
+simple physical primitive so a robot simulator can model it: {objects}.
+For each give:
+- shape: "box" (blocks, boxes, books, phones), "cylinder" (mugs, cups, cans, bottles, jars)
+  or "sphere" (balls, round fruit)
+- width_cm, depth_cm: its footprint seen from above, handles excluded
+- height_cm: how tall it stands
+- handle: true if it has a handle that sticks out sideways (a mug or cup)
+Use real-world sizes. A mug is about 8 cm wide and 9 cm tall."""
+
+
+def describe_schema(objects: Sequence[str]) -> dict[str, Any]:
+    """JSON schema for one primitive description per named object."""
+    one = {
+        "type": "object",
+        "properties": {
+            "shape": {"type": "string", "enum": ["box", "cylinder", "sphere"]},
+            "width_cm": {"type": "number"},
+            "depth_cm": {"type": "number"},
+            "height_cm": {"type": "number"},
+            "handle": {"type": "boolean"},
+        },
+        "required": ["shape", "width_cm", "depth_cm", "height_cm", "handle"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {name: one for name in objects},
+        "required": list(objects),
+        "additionalProperties": False,
+    }
+
+
+def describe_request(model: str, image_url: str, objects: Sequence[str]) -> dict[str, Any]:
+    return {
+        "model": model,
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": DESCRIBE_PROMPT.format(objects=", ".join(objects)),
+                    },
+                    {"type": "input_image", "image_url": image_url},
+                ],
+            }
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "object_shapes",
+                "schema": describe_schema(objects),
+                "strict": True,
+            }
+        },
+    }
+
+
 def build_request(
     model: str, file_id: str, objects: Sequence[str], containers: Sequence[str]
 ) -> dict[str, Any]:

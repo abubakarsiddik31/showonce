@@ -11,6 +11,7 @@ from pathlib import Path
 from showonce.demo import regions_from_scene
 from showonce.geometry import Calibration
 from showonce.meta.client import MetaClient
+from showonce.objects import ObjectProfile
 from showonce.program import TaskProgram
 from showonce.scene_spec import SceneSpec
 from showonce.sim.controller import PandaController
@@ -69,10 +70,16 @@ def _place_all(
     return placed
 
 
-def shuffled_layout(names: list[str], regions: list[Region], seed: int) -> dict[str, XY]:
+def shuffled_layout(
+    names: list[str],
+    regions: list[Region],
+    seed: int,
+    profiles: dict[str, ObjectProfile] | None = None,
+) -> dict[str, XY]:
     """Random object positions that do not overlap each other or any container."""
     rng = random.Random(seed)
-    footprint = {name: block_def(name).shape.footprint for name in names}
+    profiles = profiles or {}
+    footprint = {name: block_def(name, profiles.get(name)).shape.footprint for name in names}
     for _ in range(50):
         placed = _place_all(names, regions, rng, footprint)
         if placed is not None:
@@ -96,8 +103,8 @@ def replay(
     """
     calibration = Calibration.for_frame(*(scene.size or (1280, 720)))
     regions = regions_from_scene(scene, calibration)
-    truth = shuffled_layout(list(scene.prompts), regions, seed)
-    layout = Layout(truth, regions)
+    truth = shuffled_layout(list(scene.prompts), regions, seed, scene.profiles)
+    layout = Layout(truth, regions, scene.profiles)
     world: SimWorld = build_world(layout)
     recorder = SimRecorder(world) if record_to else None
     controller = PandaController(world, on_step=recorder.capture if recorder else None)
