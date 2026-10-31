@@ -13,7 +13,7 @@ from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
-from showonce.sim.skills import free_spot, open_package, wipe
+from showonce.sim.skills import free_spot, open_package, pour, wipe
 
 SLOT_MARGIN = 0.004  # clearance between a placed object and the rim
 # Where objects go in a container, as fractions of the free half-width: corners, then center.
@@ -274,6 +274,16 @@ def execute(
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue
+        if step.action == "pour":
+            region = by_name.get(step.target)
+            if region is None:
+                raise ExecutionError(f"Unknown container '{step.target}' in step: {step}")
+            if world.contents_of(step.object) is None:
+                raise ExecutionError(f"'{step.object}' has nothing to pour")
+            pour(world, controller, step.object, where(step.object), step.target, region.center)
+            if on_step_done is not None:
+                on_step_done(index, str(step))
+            continue
         if step.action == "stack_on":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown stack target '{step.target}' in step: {step}")
@@ -348,6 +358,14 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
                 ok = dx * ux + dy * uy > 0  # on the side the relation names
             checks.append(
                 StepCheck(str(step), bool(ok), f"offset ({dx * 1000:.0f}, {dy * 1000:.0f}) mm")
+            )
+        elif step.action == "pour":
+            ok = (
+                world.contents_of(step.target) is not None
+                and world.contents_of(step.object) is None
+            )
+            checks.append(
+                StepCheck(str(step), bool(ok), f"{step.target} holds the poured contents")
             )
         else:
             below = world.block_pos(step.target)

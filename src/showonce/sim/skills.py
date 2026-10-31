@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from showonce.sim.controller import PandaController
-from showonce.sim.scene import STRIP_HALF, STRIP_TAIL, SimWorld, strip_offset
+from showonce.sim.scene import STRIP_HALF, STRIP_TAIL, TRAY_FLOOR, SimWorld, strip_offset
 
 XY = tuple[float, float]
 Vec = NDArray[np.float64]
@@ -203,3 +203,26 @@ def open_package(
     spot = _drop_spot(bag, (hx, hy), others, keep_out)
     rest_z = STRIP_HALF[2] + 0.002  # the strip lies flat on the table
     controller.pull_off(f"{package}_lid", grip, np.array([spot[0], spot[1] + reach, rest_z]))
+
+
+def pour(
+    world: SimWorld,
+    controller: PandaController,
+    source: str,
+    source_at: Vec,
+    target_name: str,
+    centre: XY,
+) -> None:
+    """Hold the cup over the target, tip it until it is empty, and set it back down.
+
+    The contents are an abstraction (Task 4): the transfer happens in ``pour_into``, not
+    in the physics.
+    """
+    over = np.array([centre[0], centre[1], TRAY_FLOOR + 0.14])
+    controller.grasp(source, source_at)
+    controller.move_to(over)
+    controller.tilt(2.0)
+    world.pour_into(source, target_name)
+    controller.dwell(100)
+    controller.tilt(0.0)
+    controller.release(source, source_at + np.array([0.0, 0.0, 0.002]))

@@ -8,7 +8,7 @@ from showonce.demo import fit_profiles
 from showonce.objects import ObjectProfile
 from showonce.program import Step, TaskProgram
 from showonce.sim.controller import PandaController
-from showonce.sim.executor import ExecutionError, Layout, build_world, execute, verify
+from showonce.sim.executor import ExecutionError, Layout, Region, build_world, execute, verify
 from showonce.sim.scene import DEFAULT_ASSET_DIR
 from showonce.sim.skills import circle_path, wipe_path
 
@@ -130,3 +130,16 @@ def test_slide_pushes_a_box_without_grasping() -> None:
     controller.slide("green book", (0.35, 0.15))
     moved = float(np.linalg.norm(world.block_pos("green book")[:2] - before[:2]))
     assert moved > 0.15
+
+
+@needs_panda
+def test_pour_empties_the_cup_into_the_bowl() -> None:
+    cup = ObjectProfile(shape="cylinder", width=0.06, depth=0.06, height=0.08, handle=True)
+    profiles = {"red cup": cup}
+    layout = Layout({"red cup": (0.4, -0.1)}, [Region("bowl", (0.5, 0.12), (0.16, 0.16))], profiles)
+    program = TaskProgram(name="t", steps=[Step(object="red cup", action="pour", target="bowl")])
+    world = build_world(layout, program)
+    execute(program, world, PandaController(world), layout.regions)
+    checks = verify(program, world, layout.regions)
+    assert all(c.ok for c in checks), [c.detail for c in checks]
+    assert world.contents_of("bowl") is not None and world.contents_of("red cup") is None
