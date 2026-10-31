@@ -25,6 +25,7 @@ STRIP_HALF = (0.01, 0.0, 0.004)  # half width along x and half thickness; length
 STRIP_TAIL = 0.03  # how far the strip sticks out past each side of the bag
 DIRT_SPOTS = 14
 DIRT_RADIUS = 0.012
+PARK_Z = -0.4  # where cut-away bodies wait, each at its own depth below this
 CONTENTS_RGBA = (0.55, 0.42, 0.2, 1.0)  # dry cereal-brown: contents are an abstraction, not a fluid
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
@@ -240,10 +241,11 @@ class SimWorld:
                     objtype=mujoco.mjtObj.mjOBJ_BODY,
                 )
                 eq.active = False
+        index = {b.name: i for i, b in enumerate(blocks)}
         for block in blocks:
-            if f"{block.name} half a" in {b.name for b in blocks}:
+            if f"{block.name} half a" in index:
                 for half in (f"{block.name} half a", f"{block.name} half b"):
-                    spec.body(half).pos = [0.0, 0.0, -0.4]  # parked under the table until the cut
+                    spec.body(half).pos = [0.0, 0.0, PARK_Z - 0.05 * index[half]]  # one depth each
         world.add_camera(
             name=CAMERA_NAME,
             pos=[WORK_CENTER_X, 0.0, CAMERA_HEIGHT],
@@ -475,7 +477,7 @@ class SimWorld:
             raise ValueError(f"'{name}' is not something that can be cut in two")
         pos = self.block_pos(name)
         hx = self._shapes[name].half[0]
-        for sign, half in zip((1.0, -1.0), self._halves[name]):
+        for sign, half in zip((1.0, -1.0), self._halves[name], strict=True):
             self.set_block(half, (float(pos[0]) + sign * (hx / 2 + 0.008), float(pos[1])))
             body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, half)
             self.model.body_gravcomp[body_id] = 0.0  # a real object again
@@ -490,9 +492,10 @@ class SimWorld:
 
     def press(self, name: str) -> None:
         """Press a pressable object: it latches down and darkens."""
-        geom = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, f"{name}_geom")
-        self.model.geom_rgba[geom, :3] *= 0.6
-        self._pressed.add(name)
+        if name not in self._pressed:  # latched: a second press changes nothing
+            geom = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, f"{name}_geom")
+            self.model.geom_rgba[geom, :3] *= 0.6
+            self._pressed.add(name)
 
     def is_pressed(self, name: str) -> bool:
         return name in self._pressed
@@ -501,7 +504,8 @@ class SimWorld:
         """Teleport a body far under the table and freeze it, out of the scene."""
         joint = self.model.joint(int(self.model.body(name).jntadr[0]))
         adr = int(joint.qposadr[0])
-        self.data.qpos[adr : adr + 7] = [0.0, 0.0, -0.4, 1, 0, 0, 0]
+        z = PARK_Z - 0.05 * self.block_names.index(name)  # its own depth slot, like at build time
+        self.data.qpos[adr : adr + 7] = [0.0, 0.0, z, 1, 0, 0, 0]
         self.data.qvel[int(joint.dofadr[0]) : int(joint.dofadr[0]) + 6] = 0
         self.model.body_gravcomp[self.model.body(name).id] = 1.0
         mujoco.mj_forward(self.model, self.data)

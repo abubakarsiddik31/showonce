@@ -1,3 +1,4 @@
+import mujoco
 import pytest
 
 from showonce.objects import ObjectProfile
@@ -89,3 +90,30 @@ def test_cutting_swaps_a_box_for_its_two_halves() -> None:
     assert world.is_split("white bar")
     for half in world.halves_of("white bar"):
         assert world.block_pos(half)[2] > 0.0  # both halves rest on the table
+
+
+@needs_panda
+def test_parked_halves_wait_at_separate_depths() -> None:
+    profiles = {"white bar": ObjectProfile(shape="box", width=0.12, depth=0.05, height=0.04)}
+    program = TaskProgram(name="t", steps=[Step(object="gray knife", action="cut", target="white bar")])
+    world = build_world(
+        Layout({"white bar": (0.45, 0.0), "gray knife": (0.45, 0.2)}, [], profiles), program
+    )
+    za, zb = (world.block_pos(h)[2] for h in world.halves_of("white bar"))
+    assert za < 0.0 and zb < 0.0 and za != zb  # never two bodies at one parked spot
+
+
+@needs_panda
+def test_pressing_twice_darkens_only_once() -> None:
+    lamp = block_def(
+        "orange lamp",
+        ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True),
+    )
+    world = SimWorld([lamp], [])
+    geom = mujoco.mj_name2id(world.model, mujoco.mjtObj.mjOBJ_GEOM, "orange lamp_geom")
+    before = world.model.geom_rgba[geom, :3].copy()
+    world.press("orange lamp")
+    once = world.model.geom_rgba[geom, :3].copy()
+    world.press("orange lamp")
+    assert tuple(world.model.geom_rgba[geom, :3]) == tuple(once)
+    assert all(a < b for a, b in zip(once, before, strict=True))

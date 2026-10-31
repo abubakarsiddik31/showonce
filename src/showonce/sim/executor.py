@@ -69,7 +69,7 @@ def _half_profiles(layout: Layout, program: TaskProgram | None) -> dict[str, Obj
     if not program:
         return halves
     for step in program.steps:
-        if step.action != "cut" or step.target in halves:
+        if step.action != "cut" or f"{step.target} half a" in halves:
             continue
         parent = layout.profiles.get(step.target)
         if parent is None:
