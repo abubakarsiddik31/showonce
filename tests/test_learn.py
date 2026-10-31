@@ -2,6 +2,7 @@ import pytest
 
 from showonce.learn import LearnError, classify_move, learn_program
 from showonce.perception.moves import Move, Rest
+from showonce.program import Step
 from showonce.scene_spec import ContainerSpec
 
 BOX = ContainerSpec(name="box", center=(1000.0, 360.0), size=(240.0, 280.0))
@@ -50,3 +51,43 @@ def test_repeat_move_into_same_container_is_dropped() -> None:
     nudge = Move("red block", 200, 230, (1010, 340), (1040, 380))
     program = learn_program("t", [first, nudge], {}, [BOX])
     assert [str(s) for s in program.steps] == ["put red block in box"]
+
+
+# The landing below must sit outside STACK_RADIUS_PX (45) of the blue block but inside
+# NEAR_RADIUS_PX (90): inside the stack radius the move reads as stack_on, not place_near.
+def test_move_to_open_table_becomes_place_near() -> None:
+    moves = [
+        Move(label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(260.0, 110.0))
+    ]
+    rests = {
+        "red block": [Rest(0, 10, (100.0, 100.0)), Rest(40, 90, (260.0, 110.0))],
+        "blue block": [Rest(0, 90, (320.0, 100.0))],
+    }
+    program = learn_program("t", moves, rests, [])
+    assert program.steps == [
+        Step(object="red block", action="place_near", target="blue block", relation="left_of")
+    ]
+
+
+def test_place_near_relation_follows_the_dominant_axis() -> None:
+    moves = [
+        Move(label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(320.0, 160.0))
+    ]
+    rests = {
+        "red block": [Rest(0, 10, (100.0, 100.0)), Rest(40, 90, (320.0, 160.0))],
+        "blue block": [Rest(0, 90, (320.0, 100.0))],
+    }
+    program = learn_program("t", moves, rests, [])
+    assert program.steps[0].relation == "in_front_of"  # lower in frame, toward the person
+
+
+def test_a_move_to_nowhere_still_fails() -> None:
+    moves = [
+        Move(label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(600.0, 500.0))
+    ]
+    rests = {
+        "red block": [Rest(0, 10, (100.0, 100.0)), Rest(40, 90, (600.0, 500.0))],
+        "blue block": [Rest(0, 90, (320.0, 100.0))],
+    }
+    with pytest.raises(LearnError):
+        learn_program("t", moves, rests, [])
