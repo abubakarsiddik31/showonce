@@ -34,6 +34,16 @@ uv run ruff format .   # format
 uv run mypy            # type check
 ```
 
+## Sample clips
+
+No footage is committed. Generate 8 synthetic clips (mp4 + ground-truth json) with:
+
+```bash
+uv run showonce synth   # writes to samples/synthetic/
+```
+
+Put real phone clips in `samples/`.
+
 ## Layout
 
 ```
@@ -44,6 +54,7 @@ src/showonce/
   meta/            Meta Model API client and SAM output parser
   perception/      resting-state and move detection
   sim/             MuJoCo scene, controller, executor
+  synth/           synthetic top-down demo clips with ground truth
 tests/             unit tests
 docs/              PRD and delivery plan
 ```

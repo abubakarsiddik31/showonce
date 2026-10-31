@@ -11,3 +11,4 @@ assets/mujoco_menagerie/
 .ruff_cache/
 .coverage
 .DS_Store
+samples/synthetic/

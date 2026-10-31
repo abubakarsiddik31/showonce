@@ -53,3 +53,15 @@ def segment(
             str(oid), str(len(dets)), str(dets[0].frame), str(dets[-1].frame), f"{area:.0f}"
         )
     console.print(table)
+
+
+@app.command()
+def synth(
+    out: Annotated[Path, typer.Option(help="Output directory.")] = Path("samples/synthetic"),
+) -> None:
+    """Render the synthetic demo clips (mp4 + ground-truth json) used for development."""
+    from showonce.synth.render import write_clip
+    from showonce.synth.scene import SCENARIOS
+
+    for scenario in SCENARIOS:
+        console.print(f"rendered {write_clip(scenario, out)}")
