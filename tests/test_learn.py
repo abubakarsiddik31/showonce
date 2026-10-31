@@ -43,3 +43,10 @@ def test_unexplained_move_raises() -> None:
     move = Move("red block", 40, 90, (200, 200), (600, 600))
     with pytest.raises(LearnError):
         classify_move(move, {}, [BOX])
+
+
+def test_repeat_move_into_same_container_is_dropped() -> None:
+    first = Move("red block", 40, 90, (200, 200), (1010, 340))
+    nudge = Move("red block", 200, 230, (1010, 340), (1040, 380))
+    program = learn_program("t", [first, nudge], {}, [BOX])
+    assert [str(s) for s in program.steps] == ["put red block in box"]

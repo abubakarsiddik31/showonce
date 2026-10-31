@@ -73,8 +73,12 @@ def learn_program(
 ) -> TaskProgram:
     steps: list[Step] = []
     heights: dict[str, int] = {}
+    last: dict[str, Step] = {}
     for move in moves:
         step = classify_move(move, all_rests, containers, heights)
+        if last.get(step.object) == step:
+            continue  # nudged inside the container it is already in: not a new action
+        last[step.object] = step
         heights[step.object] = heights.get(step.target, 0) + 1 if step.action == "stack_on" else 0
         steps.append(step)
     return TaskProgram(name=name, steps=steps)

@@ -2,19 +2,17 @@
 
 Development tool only. ShowOnce itself uses only Meta models; these clips are test footage.
 
-Generative video does not keep objects consistent over long clips, so each clip is built from
-anchored steps:
+One clip is one continuous video, so the hand and objects stay consistent with no cuts:
 
 1. An image model makes a clean start frame of the table.
-2. For each step, the image model edits the previous frame into the step's end state.
-3. Omni generates the hand motion between the two frames (first and last frame given).
-4. The segments are joined, with a still of each end state held between steps so every step
-   ends with a clean resting frame and no hand.
+2. Omni generates the first step (up to 10 s) from that frame.
+3. Each further step extends the same video (previous_interaction_id), 10 s at a time, up to
+   40 s in total.
 
-Everything is cached under samples/generated/_work/, so reruns only pay for missing pieces.
-Needs GEMINI_API_KEY and the `tools` dependency group:
+Every turn is cached under samples/generated/_work/<name>/, so reruns only pay for missing
+turns (about $0.10 per generated second). Needs GEMINI_API_KEY and the `tools` group:
 
-    uv run --group tools python scripts/generate_videos.py --only dishes_into_rack
+    uv run --group tools python scripts/generate_videos.py --only toys_into_bin
 """
 
 from __future__ import annotations
@@ -23,7 +21,6 @@ import argparse
 import base64
 import json
 import os
-import subprocess
 from pathlib import Path
 
 from google import genai
@@ -34,8 +31,6 @@ OUT = ROOT / "samples" / "generated"
 WORK = OUT / "_work"
 VIDEO_MODEL = "gemini-omni-1.1-flash"  # about $0.10 per second of 720p video
 IMAGE_MODEL = "gemini-3.1-flash-image"
-SEGMENT_SECONDS = 8
-HOLD_SECONDS = 1.0
 
 
 def load_env() -> None:
@@ -65,49 +60,23 @@ def make_image(client: genai.Client, contents: list[object], path: Path) -> None
     path.write_bytes(parts[0].data)
 
 
-def make_segment(client: genai.Client, first: Path, last: Path, motion: str, path: Path) -> None:
-    if path.exists():
-        return
-
-    def image(p: Path) -> dict[str, str]:
-        return {
-            "type": "image",
-            "data": base64.b64encode(p.read_bytes()).decode(),
-            "mime_type": "image/jpeg",
-        }
-
-    text = (
-        f"{motion} The first image is the exact start and the second image is the exact end. "
-        f"The clip lasts about {SEGMENT_SECONDS} seconds."
-    )
-    interaction = client.interactions.create(
-        model=VIDEO_MODEL,
-        input=[image(first), image(last), {"type": "text", "text": text}],
-        response_format={"type": "video", "resolution": "720p", "aspect_ratio": "16:9"},
-    )
-    path.write_bytes(base64.b64decode(interaction.output_video.data))
+def _image(path: Path) -> dict[str, str]:
+    return {
+        "type": "image",
+        "data": base64.b64encode(path.read_bytes()).decode(),
+        "mime_type": "image/png" if path.read_bytes()[:4] == b"\x89PNG" else "image/jpeg",
+    }
 
 
-def assemble(frames: list[Path], segments: list[Path], out: Path) -> None:
-    """Join: hold(frame0), then for each step segment + hold(end frame). Video only, 24 fps."""
-    norm = (
-        "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,"
-        "fps=24,setsar=1,format=yuv420p"
-    )
-    cmd = ["ffmpeg", "-loglevel", "error", "-y"]
-    for frame in (frames[0], *frames[1:]):
-        cmd += ["-loop", "1", "-t", str(HOLD_SECONDS), "-i", str(frame)]
-    for seg in segments:
-        cmd += ["-i", str(seg)]
-    n_frames = len(frames)
-    order = [0]  # input index of each clip in playback order
-    for i in range(len(segments)):
-        order += [n_frames + i, i + 1]
-    filters = [f"[{idx}:v]{norm}[v{k}]" for k, idx in enumerate(order)]
-    joined = "".join(f"[v{k}]" for k in range(len(order)))
-    filters.append(f"{joined}concat=n={len(order)}:v=1:a=0[out]")
-    cmd += ["-filter_complex", ";".join(filters), "-map", "[out]", "-c:v", "libx264", str(out)]
-    subprocess.run(cmd, check=True)
+def _create(client: genai.Client, input_: list[dict[str, str]], previous: str | None) -> object:
+    kwargs: dict[str, object] = {
+        "model": VIDEO_MODEL,
+        "input": input_,
+        "response_format": {"type": "video", "resolution": "720p", "aspect_ratio": "16:9"},
+    }
+    if previous:
+        kwargs["previous_interaction_id"] = previous
+    return client.interactions.create(**kwargs)
 
 
 def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
@@ -117,27 +86,33 @@ def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
         return
     work = WORK / name
     work.mkdir(parents=True, exist_ok=True)
-    frames = [work / "frame0.png"]
+    start = work / "frame0.png"
     print(f"{name}: start frame", flush=True)
-    make_image(client, [f"{spec['_style']} {clip['scene']}"], frames[0])
-    for i, step in enumerate(clip["steps"], 1):
-        frames.append(work / f"frame{i}.png")
-        print(f"{name}: end frame {i}", flush=True)
-        previous = types.Part.from_bytes(data=frames[i - 1].read_bytes(), mime_type="image/jpeg")
-        make_image(client, [previous, step["edit"]], frames[i])
-    segments = []
+    make_image(client, [f"{spec['_style']} {clip['scene']}"], start)
+    previous: str | None = None
+    video = work / "turn0.mp4"
     for i, step in enumerate(clip["steps"]):
-        segments.append(work / f"seg{i}.mp4")
-        print(f"{name}: motion segment {i + 1}/{len(clip['steps'])}", flush=True)
-        make_segment(
-            client,
-            frames[i],
-            frames[i + 1],
-            f"{step['motion']} {spec['_motion']}",
-            segments[i],
-        )
-    assemble(frames, segments, out)
-    (WORK / name / "clip.json").write_text(json.dumps(clip, indent=2))
+        video = work / f"turn{i}.mp4"
+        ids = work / f"turn{i}.id"
+        if video.exists() and ids.exists():
+            previous = ids.read_text()
+            continue
+        print(f"{name}: turn {i + 1}/{len(clip['steps'])}", flush=True)
+        if previous is None:
+            text = f"{step['motion']} {spec['_motion']} The clip lasts 10 seconds."
+            interaction = _create(client, [_image(start), {"type": "text", "text": text}], None)
+        else:
+            text = (
+                f"Extend this video. {step['motion']} {spec['_motion']} The same hand, same "
+                "sleeve and same camera as before. Keep everything else the same."
+            )
+            interaction = _create(client, [{"type": "text", "text": text}], previous)
+        video.write_bytes(base64.b64decode(interaction.output_video.data))
+        previous = interaction.id
+        ids.write_text(previous)
+    # Each extension returns the video so far, so the last turn is the whole clip.
+    out.write_bytes(video.read_bytes())
+    (work / "clip.json").write_text(json.dumps(clip, indent=2))
     print(f"{name}: saved {out.relative_to(ROOT)}", flush=True)
 
 
