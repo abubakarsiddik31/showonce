@@ -224,6 +224,8 @@ def write_clip(sc: Scenario, out_dir: Path) -> Path:
         "size": [WIDTH, HEIGHT],
         "duration_s": round(len(frames) / FPS, 2),
         "prompts": {o.name: o.prompt or o.name for o in sc.objects},
+        # In the simulator every object is a cube, so prompt by color and "block".
+        "sim_prompts": {o.name: f"{o.name.split()[0]} block" for o in sc.objects},
         "initial": {k: list(v) for k, v in build_frames_initial(sc).items()},
         "steps": events,
         "final": {k: [round(v[0], 1), round(v[1], 1)] for k, v in final.positions.items()},

@@ -33,6 +33,9 @@ uv run showonce synth                      # renders 8 synthetic clips
 uv run showonce demo samples/synthetic/stack_red_on_blue_cups.mp4 \
     --scene samples/synthetic/stack_red_on_blue_cups.json
 uv run showonce eval-demo                  # score video -> program -> robot on all clips
+uv run showonce replay runs/stack_red_on_blue_cups/program.json \
+    --scene samples/synthetic/stack_red_on_blue_cups.json --seed 3   # shuffled layout, SAM finds the blocks
+uv run showonce eval-replay                # 8 clips x 3 shuffled layouts
 uv run showonce sim-test                   # 10 random block stacks, no API needed
 ```
 

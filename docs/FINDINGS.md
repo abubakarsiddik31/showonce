@@ -2,6 +2,17 @@
 
 Measured results that shaped the design. Newest first.
 
+## 2026-10-31: replay on shuffled layouts, 24 of 24
+
+`uv run showonce eval-replay` learns each clip once, shuffles the sim table with a random seed, parks the arm, renders the top camera, finds each block with SAM 3.1 on that image, and runs the saved program from the new layout.
+
+- **24 of 24 replays succeeded** (8 clips x 3 shuffled layouts). Success is checked from simulator ground truth.
+- SAM 3.1 located the blocks in the sim frame to **0.7 to 1.1 mm on average** (max 2.0 mm) after a simple perspective correction for the cube height. Without that correction the error was about 9 mm for blocks far from the camera axis.
+- SAM image calls (`input_image` with a base64 PNG data URL) work the same as video calls. Boxes come back as `<0f>` records.
+- Reasons it is easy: the sim is clean, flat-shaded and has no clutter. These numbers say the pipeline is correct end to end. They do not say it will survive a real camera.
+
+Next risks: real phone footage, a real calibration (four clicked corners), and a more varied scene.
+
 ## 2026-10-31: Muse Spark reads the clips too
 
 `MetaClient.plan_video` sends the clip to `muse-spark-1.3` with a strict JSON schema (`text.format`). Object and target names are restricted to the scene with enums, so it cannot invent objects.

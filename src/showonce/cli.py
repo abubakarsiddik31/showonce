@@ -256,3 +256,88 @@ def eval_demo(
     (settings.runs_dir / "eval_demo.json").write_text(
         json.dumps([asdict(r) for r in rows], indent=2)
     )
+
+
+@app.command()
+def replay(
+    program: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="program.json")],
+    scene: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Scene json.")],
+    seed: Annotated[int, typer.Option(help="Seed for the shuffled layout.")] = 1,
+    out: Annotated[Path | None, typer.Option(help="Where to save the sim video.")] = None,
+    oracle: Annotated[bool, typer.Option(help="Use true sim positions, not SAM.")] = False,
+) -> None:
+    """Replay a saved program on a shuffled layout, finding objects with SAM 3.1."""
+    from showonce.program import TaskProgram
+    from showonce.replay import replay as run_replay
+    from showonce.scene_spec import SceneSpec
+
+    spec = SceneSpec.load(scene)
+    task = TaskProgram.load(program)
+    with MetaClient(get_settings()) as client:
+        result = run_replay(client, task, spec, seed, record_to=out, oracle=oracle)
+    if result.perception_error_mm:
+        console.print(
+            "SAM position error (mm): "
+            + ", ".join(f"{n} {e:.0f}" for n, e in result.perception_error_mm.items())
+        )
+    table = Table(title=f"Replay on shuffled layout (seed {seed})")
+    for column in ("step", "ok", "detail"):
+        table.add_column(column)
+    for check in result.checks:
+        table.add_row(check.step, "yes" if check.ok else "NO", check.detail)
+    console.print(table)
+    if not result.success:
+        raise typer.Exit(code=1)
+
+
+@app.command("eval-replay")
+def eval_replay(
+    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)] = Path(
+        "samples/synthetic"
+    ),
+    layouts: Annotated[int, typer.Option(help="Shuffled layouts per clip.")] = 3,
+) -> None:
+    """Learn each clip, then replay it on shuffled layouts and score the result."""
+    import json
+
+    from showonce.demo import learn_from_video
+    from showonce.replay import replay as run_replay
+    from showonce.scene_spec import SceneSpec
+
+    settings = get_settings()
+    rows: list[dict[str, object]] = []
+    with MetaClient(settings) as client:
+        for truth_path in sorted(directory.glob("*.json")):
+            spec = SceneSpec.load(truth_path)
+            learned = learn_from_video(client, truth_path.with_suffix(".mp4"), spec)
+            passed = 0
+            errors: list[float] = []
+            for seed in range(1, layouts + 1):
+                result = run_replay(client, learned.program, spec, seed)
+                passed += result.success
+                errors.extend(result.perception_error_mm.values())
+            rows.append(
+                {
+                    "clip": spec.name,
+                    "passed": passed,
+                    "layouts": layouts,
+                    "mean_sam_error_mm": round(sum(errors) / max(1, len(errors)), 1),
+                    "max_sam_error_mm": round(max(errors, default=0.0), 1),
+                }
+            )
+            console.print(f"replayed {spec.name}: {passed}/{layouts}")
+    table = Table(title="Replay on shuffled layouts")
+    for column in ("clip", "passed", "mean SAM error (mm)", "max SAM error (mm)"):
+        table.add_column(column)
+    for r in rows:
+        table.add_row(
+            str(r["clip"]),
+            f"{r['passed']}/{r['layouts']}",
+            str(r["mean_sam_error_mm"]),
+            str(r["max_sam_error_mm"]),
+        )
+    console.print(table)
+    total = sum(int(str(r["passed"])) for r in rows)
+    console.print(f"{total}/{layouts * len(rows)} replays succeeded")
+    settings.runs_dir.mkdir(parents=True, exist_ok=True)
+    (settings.runs_dir / "eval_replay.json").write_text(json.dumps(rows, indent=2))

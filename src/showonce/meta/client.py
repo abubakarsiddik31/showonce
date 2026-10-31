@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
 from collections.abc import Iterator
@@ -85,6 +87,33 @@ class MetaClient:
                     "content": [
                         {"type": "input_text", "text": prompt},
                         {"type": "input_video", "file_id": file_id},
+                    ],
+                }
+            ],
+        }
+        text = "".join(self._stream_text(body))
+        self.cache.set(key, {"text": text})
+        return parse_sam_text(text)
+
+    def segment_image(self, png: bytes, prompt: str) -> list[Detection]:
+        """Run SAM 3.1 on one PNG image with a short noun-phrase prompt."""
+        key = make_key(
+            "sam-image", hashlib.sha256(png).hexdigest(), prompt, self.settings.sam_model
+        )
+        cached = self.cache.get(key)
+        if cached is not None:
+            return parse_sam_text(str(cached["text"]))
+        data_url = "data:image/png;base64," + base64.b64encode(png).decode()
+        body = {
+            "model": self.settings.sam_model,
+            "stream": True,
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": data_url},
                     ],
                 }
             ],

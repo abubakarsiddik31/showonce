@@ -28,10 +28,15 @@ class SceneSpec(BaseModel):
 
     name: str = "task"
     prompts: dict[str, str]
+    sim_prompts: dict[str, str] | None = None  # prompts for the simulated cubes, if different
     containers: list[ContainerSpec] = Field(default_factory=list)
     size: tuple[int, int] | None = None
 
     model_config = {"extra": "ignore"}
+
+    @property
+    def prompts_for_sim(self) -> dict[str, str]:
+        return self.sim_prompts or self.prompts
 
     @classmethod
     def load(cls, path: Path) -> SceneSpec:

@@ -112,14 +112,20 @@ class PandaController:
         self.world.data.ctrl[7] = value
         self._advance(steps)
 
+    def _move_joints(self, q_target: Vec, steps: int = 150) -> None:
+        """Smooth joint-space move, for large repositioning that is not a Cartesian path."""
+        q_start = self._current_q()
+        for i in range(1, steps + 1):
+            self.world.data.ctrl[:7] = q_start + (q_target - q_start) * (i / steps)
+            self._advance(10)
+        self._settle(q_target, max_steps=2000)
+
     def go_home(self) -> None:
-        self.world.data.ctrl[:7] = self.q_home
-        self._settle(self.q_home, max_steps=1200)
+        self._move_joints(self.q_home)
 
     def park(self) -> None:
         """Swing the arm out of the top camera's view."""
-        self.world.data.ctrl[:7] = Q_PARK
-        self._settle(Q_PARK, max_steps=2000)
+        self._move_joints(Q_PARK)
 
     # -- grasping ------------------------------------------------------------------------
 
@@ -138,12 +144,19 @@ class PandaController:
             model.eq_data[eq, 6:10] = rel_quat
         data.eq_active[eq] = 1 if active else 0
 
-    def pick_place(self, name: str, target_xy: tuple[float, float], surface_z: float = 0.0) -> None:
+    def pick_place(
+        self,
+        name: str,
+        target_xy: tuple[float, float],
+        surface_z: float = 0.0,
+        pick_at: Vec | None = None,
+    ) -> None:
         """Pick block ``name`` and set it down at ``target_xy`` with its bottom on ``surface_z``.
 
-        For stacking, pass the top of the block underneath as ``surface_z``.
+        For stacking, pass the top of the block underneath as ``surface_z``. ``pick_at`` is the
+        believed block center; by default the simulator's ground truth is used.
         """
-        pick = self.world.block_pos(name)
+        pick = self.world.block_pos(name) if pick_at is None else pick_at
         hover_pick = np.array([pick[0], pick[1], pick[2] + HOVER])
         self.set_gripper(OPEN, steps=60)
         self.move_to(hover_pick)
