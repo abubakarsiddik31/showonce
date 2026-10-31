@@ -2,6 +2,18 @@
 
 Measured results that shaped the design. Newest first.
 
+## 2026-10-31: MuJoCo Panda stacks reliably
+
+`uv run showonce sim-test` stacks one block on another from random layouts.
+
+- **10 of 10 stacks succeeded** (xy error about 5 mm, height error under 0.5 mm; blocks are 4 cm cubes).
+- PyBullet would not compile on this Mac, so the sim uses MuJoCo with the Panda from `mujoco_menagerie` (`scripts/fetch_assets.sh` downloads it).
+- The grasp is a weld constraint between the hand and the block, switched on when the gripper closes. It is far more stable than relying on friction alone. This matches the PRD's "constraint grasp".
+- Arm gravity is compensated so the position actuators do not sag.
+- 10 stacks take under 2 seconds of wall time.
+
+Known issue: at its home pose the arm hangs over the table and blocks the top camera. The replay step needs a park pose before it captures the sim camera frame.
+
 ## 2026-10-31: move detection on all 8 synthetic clips
 
 `uv run showonce eval-moves` scores detected moves (object, order, source and destination within 30 px) against the ground-truth json.

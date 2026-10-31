@@ -130,3 +130,29 @@ def eval_moves(
     settings.runs_dir.mkdir(parents=True, exist_ok=True)
     out = settings.runs_dir / "eval_moves.json"
     out.write_text(json.dumps([asdict(s) for s in scores], indent=2))
+
+
+@app.command("sim-test")
+def sim_test(
+    runs: Annotated[int, typer.Option(help="Number of random stacks.")] = 10,
+    seed: Annotated[int, typer.Option(help="Random seed for layouts.")] = 0,
+) -> None:
+    """Stack one block on another from random layouts and report success."""
+    from showonce.sim.stack_test import run_stack_test
+
+    results = run_stack_test(runs, seed)
+    table = Table(title="MuJoCo Panda stack test")
+    for column in ("run", "ok", "xy error (mm)", "z error (mm)", "note"):
+        table.add_column(column)
+    for r in results:
+        table.add_row(
+            str(r.run),
+            "yes" if r.ok else "NO",
+            f"{r.xy_error * 1000:.1f}",
+            f"{r.z_error * 1000:.1f}",
+            r.note,
+        )
+    console.print(table)
+    console.print(f"{sum(r.ok for r in results)}/{len(results)} stacks succeeded")
+    if not all(r.ok for r in results):
+        raise typer.Exit(code=1)

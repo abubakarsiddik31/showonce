@@ -1,0 +1,155 @@
+"""Cartesian pick-and-place for the Panda: damped least-squares IK plus a weld grasp."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+import mujoco
+import numpy as np
+from numpy.typing import NDArray
+
+from showonce.sim.scene import BLOCK_HALF, SimWorld
+
+Vec = NDArray[np.float64]
+
+HOVER = 0.14  # height of the gripper center above the grasp/place height while travelling
+OPEN, CLOSED = 255.0, 0.0
+
+
+class IKError(RuntimeError):
+    """Raised when inverse kinematics cannot reach a target."""
+
+
+class PandaController:
+    """Moves the Panda's tool center point with a top-down gripper and carries blocks."""
+
+    def __init__(
+        self,
+        world: SimWorld,
+        *,
+        waypoint_step: float = 0.01,
+        sim_steps_per_waypoint: int = 10,
+        on_step: Callable[[], None] | None = None,
+        callback_every: int = 10,
+    ) -> None:
+        self.world = world
+        self.waypoint_step = waypoint_step
+        self.sim_steps = sim_steps_per_waypoint
+        self.on_step = on_step
+        self.callback_every = callback_every
+        self._scratch = mujoco.MjData(world.model)
+        self._counter = 0
+        self.q_home = np.array(world.model.key_qpos[0][:7], dtype=np.float64)
+        self._rot_down = self._site_rotation(self.q_home)
+        self._jnt_range = world.model.jnt_range[:7].copy()
+
+    # -- kinematics ----------------------------------------------------------------------
+
+    def _site_rotation(self, q: Vec) -> Vec:
+        d = self._scratch
+        d.qpos[:7] = q
+        mujoco.mj_kinematics(self.world.model, d)
+        return np.array(d.site_xmat[self.world.tcp_site]).reshape(3, 3)
+
+    def solve_ik(self, target: Vec, q0: Vec, *, tol: float = 5e-4, max_iter: int = 150) -> Vec:
+        """Find joint angles that put the TCP at ``target`` with the gripper pointing down."""
+        model, d = self.world.model, self._scratch
+        q = q0.copy()
+        quat_des = np.zeros(4)
+        mujoco.mju_mat2Quat(quat_des, self._rot_down.flatten())
+        jacp, jacr = np.zeros((3, model.nv)), np.zeros((3, model.nv))
+        for _ in range(max_iter):
+            d.qpos[:7] = q
+            mujoco.mj_kinematics(model, d)
+            mujoco.mj_comPos(model, d)
+            pos_err = target - d.site_xpos[self.world.tcp_site]
+            quat_cur, quat_inv, quat_err = np.zeros(4), np.zeros(4), np.zeros(4)
+            mujoco.mju_mat2Quat(quat_cur, d.site_xmat[self.world.tcp_site])
+            mujoco.mju_negQuat(quat_inv, quat_cur)
+            mujoco.mju_mulQuat(quat_err, quat_des, quat_inv)
+            rot_err = np.zeros(3)
+            mujoco.mju_quat2Vel(rot_err, quat_err, 1.0)
+            if np.linalg.norm(pos_err) < tol and np.linalg.norm(rot_err) < 5e-3:
+                return q
+            mujoco.mj_jacSite(model, d, jacp, jacr, self.world.tcp_site)
+            jac = np.vstack([jacp[:, :7], jacr[:, :7]])
+            err = np.concatenate([pos_err, rot_err])
+            dq = jac.T @ np.linalg.solve(jac @ jac.T + 1e-4 * np.eye(6), err)
+            q = np.clip(q + np.clip(dq, -0.2, 0.2), self._jnt_range[:, 0], self._jnt_range[:, 1])
+        raise IKError(f"IK did not converge for target {np.round(target, 3).tolist()}")
+
+    # -- motion --------------------------------------------------------------------------
+
+    def _advance(self, n: int) -> None:
+        for _ in range(n):
+            self.world.step(1)
+            self._counter += 1
+            if self.on_step is not None and self._counter % self.callback_every == 0:
+                self.on_step()
+
+    def _current_q(self) -> Vec:
+        return np.array(self.world.data.qpos[:7])
+
+    def move_to(self, target: Vec) -> None:
+        """Move the TCP in a straight line to ``target`` (world meters)."""
+        start = self.world.tcp_pos()
+        n = max(1, int(np.ceil(np.linalg.norm(target - start) / self.waypoint_step)))
+        q = self._current_q()
+        for i in range(1, n + 1):
+            q = self.solve_ik(start + (target - start) * (i / n), q)
+            self.world.data.ctrl[:7] = q
+            self._advance(self.sim_steps)
+        self._settle(q)
+
+    def _settle(self, q: Vec, max_steps: int = 400) -> None:
+        for _ in range(max_steps // 20):
+            self._advance(20)
+            if np.max(np.abs(self._current_q() - q)) < 2e-3:
+                return
+
+    def set_gripper(self, value: float, steps: int = 150) -> None:
+        self.world.data.ctrl[7] = value
+        self._advance(steps)
+
+    def go_home(self) -> None:
+        self.world.data.ctrl[:7] = self.q_home
+        self._settle(self.q_home, max_steps=1200)
+
+    # -- grasping ------------------------------------------------------------------------
+
+    def _set_weld(self, name: str, active: bool) -> None:
+        model, data = self.world.model, self.world.data
+        eq = model.equality(f"grasp_{name}").id
+        if active:
+            hand, block = self.world.hand_body, model.body(name).id
+            r_hand = np.array(data.xmat[hand]).reshape(3, 3)
+            rel_pos = r_hand.T @ (data.xpos[block] - data.xpos[hand])
+            rel_rot = r_hand.T @ np.array(data.xmat[block]).reshape(3, 3)
+            rel_quat = np.zeros(4)
+            mujoco.mju_mat2Quat(rel_quat, rel_rot.flatten())
+            model.eq_data[eq, 0:3] = 0.0
+            model.eq_data[eq, 3:6] = rel_pos
+            model.eq_data[eq, 6:10] = rel_quat
+        data.eq_active[eq] = 1 if active else 0
+
+    def pick_place(self, name: str, target_xy: tuple[float, float], surface_z: float = 0.0) -> None:
+        """Pick block ``name`` and set it down at ``target_xy`` with its bottom on ``surface_z``.
+
+        For stacking, pass the top of the block underneath as ``surface_z``.
+        """
+        pick = self.world.block_pos(name)
+        hover_pick = np.array([pick[0], pick[1], pick[2] + HOVER])
+        self.set_gripper(OPEN, steps=60)
+        self.move_to(hover_pick)
+        self.move_to(pick.copy())
+        self.set_gripper(CLOSED, steps=150)
+        self._set_weld(name, True)
+        self.move_to(hover_pick)
+        place_z = surface_z + BLOCK_HALF + 0.002
+        hover_place = np.array([target_xy[0], target_xy[1], place_z + HOVER])
+        self.move_to(hover_place)
+        self.move_to(np.array([target_xy[0], target_xy[1], place_z]))
+        self._set_weld(name, False)
+        self.set_gripper(OPEN, steps=120)
+        self.move_to(hover_place)
+        self._advance(150)  # let the block settle
