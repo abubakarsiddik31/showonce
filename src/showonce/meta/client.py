@@ -12,7 +12,9 @@ import httpx
 
 from showonce.cache import JsonCache, hash_file, make_key
 from showonce.config import Settings
+from showonce.meta.muse import build_request, parse_steps, response_text
 from showonce.meta.sam import Detection, parse_sam_text
+from showonce.program import Step
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +92,19 @@ class MetaClient:
         text = "".join(self._stream_text(body))
         self.cache.set(key, {"text": text})
         return parse_sam_text(text)
+
+    def plan_video(self, file_id: str, objects: list[str], containers: list[str]) -> list[Step]:
+        """Ask Muse Spark to read the clip into steps (object, action, target)."""
+        body = build_request(self.settings.plan_model, file_id, objects, containers)
+        key = make_key("plan", json.dumps(body, sort_keys=True))
+        cached = self.cache.get(key)
+        if cached is not None:
+            return parse_steps(str(cached["text"]))
+        resp = self._http.post("/responses", json=body)
+        self._raise_for_status(resp)
+        text = response_text(resp.json())
+        self.cache.set(key, {"text": text})
+        return parse_steps(text)
 
     def _stream_text(self, body: dict[str, Any]) -> Iterator[str]:
         """Yield ``response.output_text.delta`` chunks from a streaming Responses call."""

@@ -2,6 +2,15 @@
 
 Measured results that shaped the design. Newest first.
 
+## 2026-10-31: Muse Spark reads the clips too
+
+`MetaClient.plan_video` sends the clip to `muse-spark-1.3` with a strict JSON schema (`text.format`). Object and target names are restricted to the scene with enums, so it cannot invent objects.
+
+- **Muse Spark matched the geometry on 8 of 8 clips**, including stacking three cups and sorting into zones. It reads the same steps SAM geometry derives, so the two Meta models agree.
+- Non-streaming `POST /responses` with `input_video` and a `file_id` works. The text is in `output[].content[].text`.
+- Policy: SAM geometry is primary. Muse Spark is a cross-check, and is used instead only if geometry cannot explain a move.
+- The synthetic clips are easy for Muse Spark. Real clips with clutter and similar objects are the real test of whether it adds value.
+
 ## 2026-10-31: video to program to robot, 8 of 8 synthetic clips
 
 `uv run showonce eval-demo` runs SAM 3.1, compiles a symbolic task program, and executes it on the simulated Panda. Success is checked from simulator ground truth.

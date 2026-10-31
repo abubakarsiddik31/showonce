@@ -78,3 +78,14 @@ def learn_program(
         heights[step.object] = heights.get(step.target, 0) + 1 if step.action == "stack_on" else 0
         steps.append(step)
     return TaskProgram(name=name, steps=steps)
+
+
+def compare_plans(geometry: list[Step], semantic: list[Step]) -> list[str]:
+    """Describe where two step lists disagree. An empty list means they match exactly."""
+    problems: list[str] = []
+    if len(geometry) != len(semantic):
+        problems.append(f"step count differs: geometry {len(geometry)}, Muse Spark {len(semantic)}")
+    for i, (a, b) in enumerate(zip(geometry, semantic, strict=False), 1):
+        if a != b:
+            problems.append(f"step {i}: geometry '{a}', Muse Spark '{b}'")
+    return problems

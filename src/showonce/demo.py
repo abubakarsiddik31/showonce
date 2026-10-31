@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
 
 from showonce.geometry import Calibration
-from showonce.learn import learn_program
-from showonce.meta.client import MetaClient
+from showonce.learn import LearnError, compare_plans, learn_program
+from showonce.meta.client import MetaAPIError, MetaClient
 from showonce.perception.pipeline import Observation, observe
-from showonce.program import TaskProgram
+from showonce.program import Step, TaskProgram
 from showonce.scene_spec import SceneSpec
 from showonce.sim.controller import PandaController
 from showonce.sim.executor import Layout, Region, StepCheck, build_world, execute, verify
 from showonce.sim.record import SimRecorder
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +26,9 @@ class Learned:
     program: TaskProgram
     layout: Layout  # where objects started in the video, in table coordinates
     observation: Observation
+    source: str = "geometry"  # "geometry", or "muse_spark" when geometry could not explain a move
+    semantic: list[Step] | None = None  # Muse Spark's independent reading, if it answered
+    discrepancies: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,16 +58,41 @@ def regions_from_scene(scene: SceneSpec, calibration: Calibration) -> list[Regio
     return regions
 
 
+def _read_with_muse_spark(client: MetaClient, video: Path, scene: SceneSpec) -> list[Step] | None:
+    try:
+        return client.plan_video(
+            client.upload_video(video), list(scene.prompts), [c.name for c in scene.containers]
+        )
+    except (MetaAPIError, ValueError, KeyError) as exc:
+        log.warning("Muse Spark could not read %s: %s", video.name, exc)
+        return None
+
+
 def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learned:
-    """Watch the clip: find what moved where, then compile a task program."""
+    """Watch the clip with SAM 3.1 and Muse Spark, then compile a task program.
+
+    SAM geometry is the primary signal. Muse Spark's independent reading is cross-checked
+    against it, and is used instead only if the geometry cannot explain a move.
+    """
     width, height = scene.size or frame_size(video)
     calibration = Calibration.for_frame(width, height)
     obs = observe(client, video, scene.prompts)
-    program = learn_program(scene.name, obs.moves, obs.rests, scene.containers)
+    semantic = _read_with_muse_spark(client, video, scene)
+    source = "geometry"
+    try:
+        program = learn_program(scene.name, obs.moves, obs.rests, scene.containers)
+        problems = compare_plans(program.steps, semantic) if semantic is not None else []
+    except LearnError:
+        if semantic is None:
+            raise
+        program = TaskProgram(name=scene.name, steps=semantic)
+        problems = ["geometry could not explain a move; using Muse Spark's steps"]
+        source = "muse_spark"
     objects = {
         name: calibration.to_table(rests[0].center) for name, rests in obs.rests.items() if rests
     }
-    return Learned(program, Layout(objects, regions_from_scene(scene, calibration)), obs)
+    layout = Layout(objects, regions_from_scene(scene, calibration))
+    return Learned(program, layout, obs, source, semantic, problems)
 
 
 def run_in_sim(program: TaskProgram, layout: Layout, record_to: Path | None = None) -> RunResult:

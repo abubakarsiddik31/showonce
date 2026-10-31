@@ -169,9 +169,17 @@ def demo(
     folder = out or settings.runs_dir / spec.name
     with MetaClient(settings) as client:
         learned = learn_from_video(client, video, spec)
-    console.print("[bold]Learned program[/bold]")
+    console.print(f"[bold]Learned program[/bold] (from {learned.source})")
     for i, step in enumerate(learned.program.steps, 1):
         console.print(f"  {i}. {step}")
+    if learned.semantic is None:
+        console.print("[yellow]Muse Spark did not answer, so there is no cross-check.[/yellow]")
+    elif learned.discrepancies:
+        console.print("[yellow]Muse Spark disagrees:[/yellow]")
+        for problem in learned.discrepancies:
+            console.print(f"  - {problem}")
+    else:
+        console.print("[green]Muse Spark read the same steps.[/green]")
     learned.program.save(folder / "program.json")
     result = run_in_sim(learned.program, learned.layout, folder / "sim.mp4")
     table = Table(title="Robot result (simulator ground truth)")
@@ -205,6 +213,7 @@ def eval_demo(
         clip: str
         program_ok: bool
         robot_ok: bool
+        muse_agrees: bool | None = None
         note: str = ""
 
     settings = get_settings()
@@ -216,19 +225,27 @@ def eval_demo(
             try:
                 learned = learn_from_video(client, truth_path.with_suffix(".mp4"), spec)
             except LearnError as exc:
-                rows.append(Row(truth["name"], False, False, str(exc)))
+                rows.append(Row(truth["name"], False, False, note=str(exc)))
                 continue
             expected = [(s["object"], s["action"], s["target"]) for s in truth["steps"]]
             got = [(s.object, s.action, s.target) for s in learned.program.steps]
             result = run_in_sim(learned.program, learned.layout)
-            rows.append(Row(truth["name"], got == expected, result.success))
+            rows.append(
+                Row(
+                    truth["name"],
+                    got == expected,
+                    result.success,
+                    None if learned.semantic is None else not learned.discrepancies,
+                )
+            )
             console.print(f"ran {truth['name']}")
     table = Table(title="Video to robot, all clips")
-    for column in ("clip", "program correct", "robot succeeded", "note"):
+    for column in ("clip", "program correct", "robot succeeded", "Muse Spark agrees", "note"):
         table.add_column(column)
     for r in rows:
+        muse = "n/a" if r.muse_agrees is None else ("yes" if r.muse_agrees else "NO")
         table.add_row(
-            r.clip, "yes" if r.program_ok else "NO", "yes" if r.robot_ok else "NO", r.note
+            r.clip, "yes" if r.program_ok else "NO", "yes" if r.robot_ok else "NO", muse, r.note
         )
     console.print(table)
     console.print(
