@@ -21,10 +21,14 @@ import argparse
 import base64
 import json
 import os
+import subprocess
 from pathlib import Path
 
 from google import genai
 from google.genai import types
+
+from showonce.config import get_settings
+from showonce.meta.client import MetaClient
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "samples" / "generated"
@@ -79,6 +83,40 @@ def _create(client: genai.Client, input_: list[dict[str, str]], previous: str | 
     return client.interactions.create(**kwargs)
 
 
+MAX_ATTEMPTS = 3
+
+
+def check_turn(
+    video: Path, prompts: list[str], step_prompt: str, container_prompt: str
+) -> list[str]:
+    """Report what is wrong with a turn's last frame, using SAM; an empty list means it is fine.
+
+    Extension sometimes leaves a ghost copy of an object, loses one, or runs out of time before
+    the step's object reaches its container. Catching that after each turn means only that turn
+    is regenerated (about $1) instead of the whole clip.
+    """
+    first, last = video.with_suffix(".first.png"), video.with_suffix(".last.png")
+    for frame, seek in ((first, ["-ss", "0"]), (last, ["-sseof", "-0.1"])):
+        cmd = ["ffmpeg", "-loglevel", "error", "-y", *seek, "-i", str(video)]
+        subprocess.run([*cmd, "-frames:v", "1", str(frame)], check=True)
+    problems = []
+    with MetaClient(get_settings()) as meta:
+        for prompt in prompts:
+            found = meta.segment_image(last.read_bytes(), prompt)
+            if len(found) != 1:
+                problems.append(f"{prompt}: seen {len(found)} times")
+            elif prompt == step_prompt:
+                boxes = meta.segment_image(first.read_bytes(), container_prompt)
+                if not boxes:
+                    continue
+                c = max(boxes, key=lambda d: d.box.area).box
+                o = found[0].box
+                cx, cy = (o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2
+                if not (c.x1 <= cx <= c.x2 and c.y1 <= cy <= c.y2):
+                    problems.append(f"{prompt}: not in the container yet")
+    return problems
+
+
 def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
     out = OUT / f"{name}.mp4"
     if out.exists():
@@ -89,6 +127,8 @@ def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
     start = work / "frame0.png"
     print(f"{name}: start frame", flush=True)
     make_image(client, [f"{spec['_style']} {clip['scene']}"], start)
+    labels = json.loads((OUT / f"{name}.json").read_text())
+    object_prompts = list(labels["prompts"].values())
     previous: str | None = None
     video = work / "turn0.mp4"
     for i, step in enumerate(clip["steps"]):
@@ -97,17 +137,29 @@ def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
         if video.exists() and ids.exists():
             previous = ids.read_text()
             continue
-        print(f"{name}: turn {i + 1}/{len(clip['steps'])}", flush=True)
-        if previous is None:
-            text = f"{step['motion']} {spec['_motion']} The clip lasts 10 seconds."
-            interaction = _create(client, [_image(start), {"type": "text", "text": text}], None)
-        else:
-            text = (
-                f"Extend this video. {step['motion']} {spec['_motion']} The same hand, same "
-                "sleeve and same camera as before. Keep everything else the same."
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            print(f"{name}: turn {i + 1}/{len(clip['steps'])} attempt {attempt}", flush=True)
+            if previous is None:
+                text = f"{step['motion']} {spec['_motion']} The clip lasts 10 seconds."
+                interaction = _create(client, [_image(start), {"type": "text", "text": text}], None)
+            else:
+                text = (
+                    f"Extend this video. {step['motion']} {spec['_motion']} The same hand, same "
+                    "sleeve and same camera as before. Keep everything else the same."
+                )
+                interaction = _create(client, [{"type": "text", "text": text}], previous)
+            video.write_bytes(base64.b64decode(interaction.output_video.data))
+            problems = check_turn(
+                video,
+                object_prompts,
+                labels["prompts"][labels["steps"][i]["object"]],
+                next(iter(labels["container_prompts"].values())),
             )
-            interaction = _create(client, [{"type": "text", "text": text}], previous)
-        video.write_bytes(base64.b64decode(interaction.output_video.data))
+            if not problems:
+                break
+            print(f"{name}: turn {i + 1} rejected ({', '.join(problems)})", flush=True)
+        else:
+            print(f"{name}: turn {i + 1} kept after {MAX_ATTEMPTS} attempts, check it by eye")
         previous = interaction.id
         ids.write_text(previous)
     # Each extension returns the video so far, so the last turn is the whole clip.
