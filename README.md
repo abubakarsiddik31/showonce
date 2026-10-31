@@ -53,6 +53,20 @@ pnpm build      # writes web/dist, which `showonce ui` serves
 pnpm test && pnpm typecheck && pnpm lint
 ```
 
+## Results on the sample clips
+
+Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM finding the objects
+in the simulator. These are AI-generated test clips, not real footage.
+
+| Clip | Steps learned | Read by | Seed 3 | Seed 7 |
+|---|---|---|---|---|
+| dishes_into_rack | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
+| fruit_into_bowl | 3 of 3 correct | motion | failed: SAM found no "orange block" | 3/3 steps |
+| toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
+
+SAM position error where it ran: 0.2 to 1.3 mm. Known weakness: the orange cube on the beige
+table is sometimes not found.
+
 ## Development
 
 ```bash
