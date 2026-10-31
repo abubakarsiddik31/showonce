@@ -18,6 +18,17 @@ Point = tuple[float, float]
 WORK_CENTER_X = 0.465  # table-plane x of the viewed rectangle's center (meters)
 WORK_WIDTH_Y = 0.52  # extent along the image horizontal, which runs along world -y
 
+# Which way a relation points on the table, in world meters (x toward the far edge, y left).
+# The top camera maps image right to world -y and image up to world +x, and the filming
+# hand enters from the bottom edge, so these match what the person in the clip saw.
+RELATION_UNIT: dict[str, tuple[float, float]] = {
+    "next_to": (0.0, 0.0),
+    "left_of": (0.0, 1.0),
+    "right_of": (0.0, -1.0),
+    "in_front_of": (-1.0, 0.0),
+    "behind": (1.0, 0.0),
+}
+
 
 class Calibration:
     """A planar homography between image pixels and table coordinates (x, y in meters)."""

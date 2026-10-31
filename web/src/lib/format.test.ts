@@ -46,6 +46,51 @@ describe('objectTone', () => {
   })
 })
 
+describe('describeStep for the new actions', () => {
+  it('words place_near with and without a relation', () => {
+    expect(
+      describeStep({
+        object: 'red block',
+        action: 'place_near',
+        target: 'blue block',
+        relation: 'left_of',
+      }),
+    ).toBe('put red block left of blue block')
+    expect(describeStep({ object: 'red block', action: 'place_near', target: 'blue block' })).toBe(
+      'put red block next to blue block',
+    )
+  })
+
+  it('words the other five', () => {
+    expect(describeStep({ object: 'green book', action: 'push', target: 'bin' })).toBe(
+      'push green book into bin',
+    )
+    expect(describeStep({ object: 'red cup', action: 'pour', target: 'bowl' })).toBe(
+      'pour red cup into bowl',
+    )
+    expect(describeStep({ object: 'yellow spoon', action: 'stir', target: 'bowl' })).toBe(
+      'stir bowl with yellow spoon',
+    )
+    expect(describeStep({ object: 'gray knife', action: 'cut', target: 'white bar' })).toBe(
+      'cut white bar with gray knife',
+    )
+    expect(describeStep({ object: 'orange lamp', action: 'press', target: 'orange lamp' })).toBe(
+      'press orange lamp',
+    )
+  })
+
+  it('targets the new actions', () => {
+    const objects = ['red block', 'blue block']
+    const containers = ['bin']
+    expect(targetsFor('place_near', 'red block', objects, containers)).toEqual(['blue block'])
+    expect(targetsFor('push', 'red block', objects, containers)).toEqual(['blue block', 'bin'])
+    expect(targetsFor('pour', 'red cup', objects, containers)).toEqual(['bin'])
+    expect(targetsFor('stir', 'red cup', objects, containers)).toEqual(['bin'])
+    expect(targetsFor('cut', 'red block', objects, containers)).toEqual(['blue block'])
+    expect(targetsFor('press', 'red block', objects, containers)).toEqual(['red block'])
+  })
+})
+
 describe('plural', () => {
   it('only adds the s when it is not exactly one', () => {
     expect(plural(1, 'step')).toBe('1 step')

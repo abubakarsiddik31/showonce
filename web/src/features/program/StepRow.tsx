@@ -1,8 +1,8 @@
 import { DotsSixVertical, X } from '@phosphor-icons/react'
 import { Reorder, useDragControls } from 'motion/react'
 
-import type { Action } from '../../api/schemas'
-import { objectTone, targetsFor } from '../../lib/format'
+import type { Action, Relation } from '../../api/schemas'
+import { describeRelation, objectTone, RELATIONS, targetsFor } from '../../lib/format'
 import type { EditableStep } from '../workbench'
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
   index: number
   objects: string[]
   containers: string[]
-  onEdit: (patch: Partial<Pick<EditableStep, 'object' | 'action' | 'target'>>) => void
+  onEdit: (patch: Partial<Pick<EditableStep, 'object' | 'action' | 'target' | 'relation'>>) => void
   onRemove: () => void
 }
 
@@ -104,6 +104,20 @@ export function StepRow({ step, index, objects, containers, onEdit, onRemove }: 
           </select>
         )}
       </div>
+      {(step.action === 'place_near' || step.action === 'push') && (
+        <select
+          aria-label={`Relation for step ${index + 1}`}
+          className={selectClass}
+          value={step.relation ?? 'next_to'}
+          onChange={(e) => onEdit({ relation: e.target.value as Relation })}
+        >
+          {RELATIONS.map((r) => (
+            <option key={r} value={r}>
+              {describeRelation(r)}
+            </option>
+          ))}
+        </select>
+      )}
     </Reorder.Item>
   )
 }

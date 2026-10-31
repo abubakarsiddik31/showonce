@@ -15,7 +15,7 @@ SAM 3.1 watches the clip · Muse Spark 1.3 reads the steps · MuJoCo Panda does 
 
 </div>
 
-> **Status: work in progress.** Built for the Meta Global AI Developer Hackathon 2026 (indie track, “Push the Frontier”). Six new actions (`place_near`, `push`, `pour`, `stir`, `cut`, `press`) are landing on the `new-actions` branch; the four shipped actions below are fully working today.
+> **Status:** Built for the Meta Global AI Developer Hackathon 2026 (indie track, “Push the Frontier”). All ten actions in the Skills table below are shipped.
 
 ## Contents
 
@@ -72,8 +72,13 @@ Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM findin
 | toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
 | dishes_wash | 2 of 2 correct (wipe each plate) | Muse Spark (a wipe is not visible to tracking) | 2/2 steps, 28 of 28 stains | 2/2 steps, 28 of 28 stains |
 | chips_open | 1 of 1 correct (open the red bag) | Muse Spark | seal torn off | seal torn off |
+| cup_pour | not yet evaluated | — | not yet evaluated | not yet evaluated |
+| bowl_stir | not yet evaluated | — | not yet evaluated | not yet evaluated |
+| book_push_aside | not yet evaluated | — | not yet evaluated | not yet evaluated |
+| bar_cut | not yet evaluated | — | not yet evaluated | not yet evaluated |
+| lamp_press | not yet evaluated | — | not yet evaluated | not yet evaluated |
 
-SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds 2, 5 and 11, and the chips clip on six layouts.
+SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds 2, 5 and 11, and the chips clip on six layouts. The five new clips (`cup_pour`, `bowl_stir`, `book_push_aside`, `bar_cut`, `lamp_press`) have scene files ready; their footage generates on demand and they have not been evaluated yet, so no scores are claimed for them.
 
 ## Teach it your own clip
 
@@ -97,14 +102,14 @@ A learned step is one action, each with its own motion in the simulator and a ch
 | `stack_on` | put an object on another | same, onto the top of the one below | ✅ shipped |
 | `wipe` | clean a dish or surface with a sponge or cloth | pick up the tool, sweep a back-and-forth raster over the whole surface; every stain it passes over is cleared | ✅ shipped |
 | `open` | tear open a bag or packet | take the seal strip along the bag's top edge by its protruding end, tear it off and lay it beside the bag, as the hand does in the clip | ✅ shipped |
-| `place_near` | put an object beside another on open table | pick-place to a free spot at the stated relation (`left_of`, `right_of`, `in_front_of`, `behind`, `next_to`) | 🚧 in progress |
-| `push` | slide a wide or flat object without grasping it | controller drives from behind at low height; contact does the work | 🚧 in progress |
-| `pour` | pour a cup into a container | grasp, carry above the target, tilt the wrist, put the cup back | 🚧 in progress |
-| `stir` | stir a container with a tool | circles inside the container rim, tool above the floor | 🚧 in progress |
-| `cut` | cut a box in two with a knife | one straight sweep; the box becomes two halves | 🚧 in progress |
-| `press` | press a button, pump or push-light | descend straight down, dwell, retract | 🚧 in progress |
+| `place_near` | put an object beside another on open table | pick-place to a free spot at the stated relation (`left_of`, `right_of`, `in_front_of`, `behind`, `next_to`) | ✅ shipped |
+| `push` | slide a wide or flat object without grasping it | controller drives from behind at low height; contact does the work | ✅ shipped |
+| `pour` | pour a cup into a container | grasp, carry above the target, tilt the wrist, put the cup back | ✅ shipped |
+| `stir` | stir a container with a tool | circles inside the container rim, tool above the floor | ✅ shipped |
+| `cut` | cut a box in two with a knife | one straight sweep; the box becomes two halves | ✅ shipped |
+| `press` | press a button, pump or push-light | descend straight down, dwell, retract | ✅ shipped |
 
-Where things ended up cannot show a wipe or a tear, so when Muse Spark reads either one in the clip, its reading is used instead of the motion tracking. These are simulator abstractions: there is no fluid or cloth physics, and a “tear” is a seal strip coming off a flat bag, not a bag ripping. Nothing here has been tested on real footage yet.
+Where things ended up cannot show a wipe or a tear, and neither can it show a pour, a stir, a cut or a press, so when Muse Spark reads any of those in the clip, its reading is used instead of the motion tracking — Muse Spark's reading is used for all of `SEMANTIC_ACTIONS` (`wipe`, `open`, `pour`, `stir`, `cut`, `press`). These are simulator abstractions: there is no fluid or cloth physics, pour and stir contents are an abstract disc with no fluid physics, and a “tear” is a seal strip coming off a flat bag, not a bag ripping. A push keeps an object's true size because it is never grasped. Nothing here has been tested on real footage yet.
 
 ## How objects are modelled
 
@@ -151,6 +156,8 @@ pnpm test && pnpm typecheck && pnpm lint
 ## Sample clips
 
 `samples/` holds five test clips of a tabletop task, each with a scene file naming the objects and containers: `toys_into_bin`, `dishes_into_rack` and `fruit_into_bowl` (30 s, put-and-place), `dishes_wash` (20 s, scrubbing two stained plates with a sponge) and `chips_open` (10 s, tearing open a bag of chips next to an untouched packet). They are AI-generated test footage (see `scripts/generate_videos.py`, a development tool that is not part of the product), not real recordings. Put real phone clips next to them with a scene file of the same shape.
+
+Five more scene files are ready, with footage that generates on demand (the mp4s are not generated yet): `cup_pour` (pour the cereal from the red cup into the white bowl), `bowl_stir` (stir the flour in the white bowl with the yellow spoon), `book_push_aside` (push the green book behind the red block without lifting it), `bar_cut` (cut the white dough bar in two with the gray knife) and `lamp_press` (press the orange push light so it clicks on). Scene file ready; footage generates on demand.
 
 Eight synthetic clips with pixel-level ground truth, used for the move-detection eval, are rebuilt locally with `uv run showonce synth` (written to the git-ignored `samples/synthetic/`).
 

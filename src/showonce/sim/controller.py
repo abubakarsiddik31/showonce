@@ -195,7 +195,10 @@ class PandaController:
         self.release(name, np.array([target_xy[0], target_xy[1], place_z]))
 
     def sweep(
-        self, path: list[tuple[float, float]], z: float, on_waypoint: Callable[[], None]
+        self,
+        path: list[tuple[float, float]],
+        z: float,
+        on_waypoint: Callable[[], None] | None = None,
     ) -> None:
         """Drag what is held along ``path`` at height ``z``; ``on_waypoint`` runs along the way."""
         for x, y in path:
@@ -207,3 +210,38 @@ class PandaController:
         hover = np.array([drop_at[0], drop_at[1], tab[2] + HOVER])
         self.move_to(hover)
         self.release(lid, drop_at)
+
+    def dwell(self, steps: int = 100) -> None:
+        """Advance the simulation in place: a held moment, nothing moving on purpose."""
+        self._advance(steps)
+
+    def slide(self, name: str, to: tuple[float, float]) -> None:
+        """Push ``name`` across the table to ``to`` without picking it up.
+
+        For things too wide or flat for the gripper: the closed fingertips drive it and
+        contact does the work.
+        """
+        pos = self.world.block_pos(name)
+        delta = np.array([to[0] - float(pos[0]), to[1] - float(pos[1])])
+        length = float(np.linalg.norm(delta))
+        if length < 1e-3:
+            return
+        unit = delta / length
+        standoff = self.world.shape(name).footprint + 0.03
+        z = max(float(pos[2]), 0.03)  # never drag the fingertips on the table
+        start = np.array(
+            [float(pos[0]) - unit[0] * standoff, float(pos[1]) - unit[1] * standoff, z]
+        )
+        finish = np.array([to[0] + unit[0] * standoff * 0.5, to[1] + unit[1] * standoff * 0.5, z])
+        self.set_gripper(CLOSED, steps=60)
+        self.move_to(start + np.array([0.0, 0.0, 0.06]))
+        self.move_to(start)
+        self.move_to(finish)
+        self._advance(300)  # let it settle
+        self.move_to(finish + np.array([0.0, 0.0, 0.06]))
+
+    def tilt(self, angle: float, steps: int = 200) -> None:
+        """Pitch the wrist by ``angle`` radians from upright (joint 5), cup still in hand."""
+        target = self.q_home.copy()
+        target[4] = self.q_home[4] + angle
+        self._move_joints(target, steps=steps)

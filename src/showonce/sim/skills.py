@@ -11,8 +11,8 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
-from showonce.sim.controller import PandaController
-from showonce.sim.scene import STRIP_HALF, STRIP_TAIL, SimWorld, strip_offset
+from showonce.sim.controller import CLOSED, PandaController
+from showonce.sim.scene import STRIP_HALF, STRIP_TAIL, TRAY_FLOOR, SimWorld, strip_offset
 
 XY = tuple[float, float]
 Vec = NDArray[np.float64]
@@ -90,6 +90,57 @@ def wipe(
     controller.release(tool, tool_at + np.array([0.0, 0.0, 0.002]))
 
 
+REACH_X, REACH_Y = (0.20, 0.62), (-0.28, 0.28)  # where the arm can set something down
+
+
+def free_spot(
+    anchor: XY,
+    half: tuple[float, float],
+    others: list[tuple[XY, float]],
+    keep_out: list[tuple[XY, XY]],
+    direction: XY | None = None,
+) -> XY:
+    """A clear place to set something down: beside ``anchor`` at ``half``'s footprint.
+
+    ``direction`` is a unit vector away from the anchor (a relation's world unit); ``None``
+    tries all four sides. Raises ``ValueError`` when nowhere within arm reach is clear.
+    """
+    reach_x = max(half[0], 0.02)
+    reach_y = max(half[1], 0.02)
+    unit = (direction[0], direction[1]) if direction and direction != (0.0, 0.0) else None
+    dirs = [unit] if unit else [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]
+    gaps = (0.02, 0.05, 0.08, 0.11)
+    best, best_room = None, -math.inf
+    for d in dirs:
+        dx, dy = d[0] * (reach_x if d[0] else reach_y), d[1] * (reach_y if d[1] else reach_x)
+        for gap in gaps:
+            spot = (anchor[0] + dx + d[0] * gap, anchor[1] + dy + d[1] * gap)
+            if not (REACH_X[0] <= spot[0] <= REACH_X[1] and REACH_Y[0] <= spot[1] <= REACH_Y[1]):
+                continue
+            room = min(
+                [
+                    max(abs(spot[0] - p[0]) - r - half[0], abs(spot[1] - p[1]) - r - half[1])
+                    for p, r in others
+                ]
+                + [1.0]
+            )
+            for centre, size in keep_out:
+                room = min(
+                    room,
+                    max(
+                        abs(spot[0] - centre[0]) - size[0] / 2,
+                        abs(spot[1] - centre[1]) - size[1] / 2,
+                    ),
+                )
+            if gap != 0:
+                room -= gap * 0.5  # the closer beside, the better
+            if room > best_room:
+                best, best_room = spot, room
+    if best is None:
+        raise ValueError(f"No free place beside {anchor}")
+    return best
+
+
 def _drop_spot(
     bag: XY,
     half: tuple[float, float],
@@ -152,3 +203,82 @@ def open_package(
     spot = _drop_spot(bag, (hx, hy), others, keep_out)
     rest_z = STRIP_HALF[2] + 0.002  # the strip lies flat on the table
     controller.pull_off(f"{package}_lid", grip, np.array([spot[0], spot[1] + reach, rest_z]))
+
+
+def pour(
+    world: SimWorld,
+    controller: PandaController,
+    source: str,
+    source_at: Vec,
+    target_name: str,
+    centre: XY,
+) -> None:
+    """Hold the cup over the target, tip it until it is empty, and set it back down.
+
+    The contents are an abstraction (Task 4): the transfer happens in ``pour_into``, not
+    in the physics.
+    """
+    over = np.array([centre[0], centre[1], TRAY_FLOOR + 0.14])
+    controller.grasp(source, source_at)
+    controller.move_to(over)
+    controller.tilt(2.0)
+    world.pour_into(source, target_name)
+    controller.dwell(100)
+    controller.tilt(0.0)
+    controller.release(source, source_at + np.array([0.0, 0.0, 0.002]))
+
+
+def stir(
+    world: SimWorld,
+    controller: PandaController,
+    tool: str,
+    tool_at: Vec,
+    target_name: str,
+    centre: XY,
+    half: XY,
+) -> None:
+    """Swirl the spoon through the bowl's contents, inside the rim, and put it back."""
+    hx, hy, hz = world.shape(tool).half
+    z = TRAY_FLOOR + hz + CLEARANCE  # the tool rides just above the bowl's floor
+    radius = max(0.01, min(half) - min(hx, hy) - 0.005)
+    path = circle_path(centre, radius, (hx, hy))
+
+    controller.grasp(tool, tool_at)
+    start = path[0]
+    controller.move_to(np.array([start[0], start[1], z + 0.06]))
+    controller.move_to(np.array([start[0], start[1], z]))
+    controller.sweep(path[1:], z)
+    world.stir(target_name)
+    controller.release(tool, tool_at + np.array([0.0, 0.0, 0.002]))
+
+
+def cut(
+    world: SimWorld,
+    controller: PandaController,
+    knife: str,
+    knife_at: Vec,
+    target: str,
+    centre: XY,
+    half: XY,
+) -> None:
+    """Draw the knife across the middle of ``target`` in one straight line and split it."""
+    hz = world.shape(knife).half[2]
+    top = float(world.block_pos(target)[2]) + world.shape(target).half[2]
+    z = top + hz + 0.002
+    y = half[1] + 0.03
+    controller.grasp(knife, knife_at)
+    controller.move_to(np.array([centre[0], centre[1] - y, z + 0.06]))
+    controller.move_to(np.array([centre[0], centre[1] - y, z]))
+    controller.move_to(np.array([centre[0], centre[1] + y, z]))  # one pass, edge to edge
+    world.split(target)
+    controller.release(knife, knife_at + np.array([0.0, 0.0, 0.002]))
+
+
+def press(world: SimWorld, controller: PandaController, target: str, at: Vec) -> None:
+    """Push straight down on a button with the closed fingertips, hold, and back off."""
+    controller.set_gripper(CLOSED, steps=60)
+    controller.move_to(at + np.array([0.0, 0.0, 0.08]))
+    controller.move_to(at + np.array([0.0, 0.0, 0.004]))
+    world.press(target)
+    controller.dwell(60)  # a firm moment on the button
+    controller.move_to(at + np.array([0.0, 0.0, 0.08]))

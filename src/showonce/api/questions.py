@@ -12,6 +12,7 @@ def step_model(step: Step) -> StepModel:
         object=step.object,
         action=step.action,
         target=step.target,
+        relation=step.relation,
         text=str(step),
         how=how_it_will_do(step),
     )

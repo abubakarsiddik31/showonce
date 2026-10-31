@@ -185,3 +185,42 @@ def test_chat_needs_at_least_one_message(api: TestClient) -> None:
         api.post("/api/chat", json={"sampleId": "x", "messages": [], "steps": []}).status_code
         == 422
     )
+
+
+def test_clean_steps_keeps_the_new_actions_that_make_sense() -> None:
+    steps = [
+        Step(object="red block", action="place_near", target="blue block", relation="left_of"),
+        Step(object="green book", action="push", target="bin"),
+        Step(object="red cup", action="pour", target="bowl"),
+        Step(object="yellow spoon", action="stir", target="bowl"),
+        Step(object="gray knife", action="cut", target="white bar"),
+        Step(object="orange lamp", action="press", target="orange lamp"),
+        Step(object="red cup", action="pour", target="blue block"),  # pour target not a container
+        Step(object="gray knife", action="cut", target="ghost"),  # not on the table
+    ]
+    kept = clean_steps(
+        steps,
+        [
+            "red block",
+            "blue block",
+            "green book",
+            "red cup",
+            "yellow spoon",
+            "gray knife",
+            "white bar",
+            "orange lamp",
+        ],
+        ["bin", "bowl"],
+    )
+    assert kept == steps[:6]
+
+
+def test_how_it_will_do_words_the_new_actions() -> None:
+    assert "beside" in how_it_will_do(
+        Step(object="a", action="place_near", target="b", relation="next_to")
+    )
+    assert "push" in how_it_will_do(Step(object="a", action="push", target="bin"))
+    assert "pour" in how_it_will_do(Step(object="a", action="pour", target="bowl")).lower()
+    assert "stir" in how_it_will_do(Step(object="a", action="stir", target="bowl")).lower()
+    assert "cut" in how_it_will_do(Step(object="a", action="cut", target="b")).lower()
+    assert "press" in how_it_will_do(Step(object="a", action="press", target="a")).lower()

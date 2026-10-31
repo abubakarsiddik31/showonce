@@ -25,6 +25,8 @@ STRIP_HALF = (0.01, 0.0, 0.004)  # half width along x and half thickness; length
 STRIP_TAIL = 0.03  # how far the strip sticks out past each side of the bag
 DIRT_SPOTS = 14
 DIRT_RADIUS = 0.012
+PARK_Z = -0.4  # where cut-away bodies wait, each at its own depth below this
+CONTENTS_RGBA = (0.55, 0.42, 0.2, 1.0)  # dry cereal-brown: contents are an abstraction, not a fluid
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
 CAMERA_HEIGHT = 0.9
@@ -40,6 +42,7 @@ class Shape:
     half: tuple[float, float, float]  # half extents along x, y, z
     handle: float = 0.0  # how far a handle sticks out along +y; the gripper closes along x
     openable: bool = False  # a sealed packet: its seal strip is a separate body
+    pressable: bool = False  # a button or pump: press it straight down
 
     @property
     def half_height(self) -> float:
@@ -70,7 +73,7 @@ class Shape:
 def shape_of(profile: ObjectProfile) -> Shape:
     half = (profile.width / 2, profile.depth / 2, profile.height / 2)
     handle = 0.5 * half[0] if profile.handle else 0.0
-    return Shape(profile.shape, half, handle, profile.openable)
+    return Shape(profile.shape, half, handle, profile.openable, profile.pressable)
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +117,8 @@ class SimWorld:
         zones: list[ZoneDef] | None = None,
         asset_dir: Path = DEFAULT_ASSET_DIR,
         dirty: Collection[str] = (),
+        contents: Collection[str] = (),
+        pour_targets: Collection[str] = (),
     ) -> None:
         panda_xml = asset_dir / "panda.xml"
         if not panda_xml.exists():
@@ -123,7 +128,9 @@ class SimWorld:
         self._rgb = {b.name: b.rgba[:3] for b in blocks}
         self._zones = {z.name: z for z in zones or []}
         spec = mujoco.MjSpec.from_file(str(panda_xml))
-        self._build_scene(spec, blocks, zones or [], set(dirty))
+        self._build_scene(
+            spec, blocks, zones or [], set(dirty), set(contents), set(pour_targets)
+        )
         self.model = spec.compile()
         self.data = mujoco.MjData(self.model)
         # Cancel gravity on the arm so position actuators do not sag; objects keep gravity.
@@ -141,15 +148,41 @@ class SimWorld:
             ]
             for surface in dirty
         }
+        self._contents: dict[str, str | None] = {name: "full" for name in contents}
+        self._mixed: set[str] = set()
+        self._content_geoms = {
+            name: mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_GEOM, f"contents_{name}"
+            )
+            for name in (*contents, *pour_targets)
+        }
+        for name in pour_targets:
+            self.model.geom_rgba[self._content_geoms[name], 3] = 0.0  # empty until poured into
+        names = set(self.block_names)
+        self._halves = {
+            b.name: (f"{b.name} half a", f"{b.name} half b")
+            for b in blocks
+            if f"{b.name} half a" in names and f"{b.name} half b" in names
+        }
+        self._pressed: set[str] = set()
         for body_id in range(1, self.model.nbody):
             self.model.body_gravcomp[body_id] = 0.0 if body_id in free else 1.0
         self.tcp_site = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "tcp")
         self.hand_body = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "hand")
+        for pair in self._halves.values():
+            for half in pair:
+                body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, half)
+                self.model.body_gravcomp[body_id] = 1.0  # frozen while parked
         self.reset()
 
     @staticmethod
     def _build_scene(
-        spec: mujoco.MjSpec, blocks: list[BlockDef], zones: list[ZoneDef], dirty: set[str]
+        spec: mujoco.MjSpec,
+        blocks: list[BlockDef],
+        zones: list[ZoneDef],
+        dirty: set[str],
+        contents: set[str],
+        pour_targets: set[str],
     ) -> None:
         world = spec.worldbody
         spec.visual.global_.offwidth = 1920
@@ -178,6 +211,9 @@ class SimWorld:
             if zone.name in dirty:
                 half = (zone.size[0] / 2 - RIM_THICKNESS, zone.size[1] / 2 - RIM_THICKNESS)
                 SimWorld._add_dirt(world, zone.name, (*zone.center, TRAY_FLOOR), half)
+            if zone.name in contents or zone.name in pour_targets:
+                half = (zone.size[0] / 2 - RIM_THICKNESS, zone.size[1] / 2 - RIM_THICKNESS)
+                SimWorld._add_contents(world, zone.name, (*zone.center, TRAY_FLOOR), half)
         spec.body("hand").add_site(
             name="tcp", pos=[0, 0, TCP_OFFSET], size=[0.004, 0.004, 0.004], rgba=[1, 0, 0, 0.3]
         )
@@ -189,6 +225,9 @@ class SimWorld:
             if block.name in dirty:
                 hx, hy, hz = block.shape.half
                 SimWorld._add_dirt(body, block.name, (0.0, 0.0, hz), (hx, hy))
+            if block.name in contents or block.name in pour_targets:
+                hx, hy, hz = block.shape.half
+                SimWorld._add_contents(body, block.name, (0.0, 0.0, hz), (hx, hy))
             graspable = [block.name]
             if block.shape.openable:
                 SimWorld._add_lid(world, block, start)
@@ -202,6 +241,11 @@ class SimWorld:
                     objtype=mujoco.mjtObj.mjOBJ_BODY,
                 )
                 eq.active = False
+        index = {b.name: i for i, b in enumerate(blocks)}
+        for block in blocks:
+            if f"{block.name} half a" in index:
+                for half in (f"{block.name} half a", f"{block.name} half b"):
+                    spec.body(half).pos = [0.0, 0.0, PARK_Z - 0.05 * index[half]]  # one depth each
         world.add_camera(
             name=CAMERA_NAME,
             pos=[WORK_CENTER_X, 0.0, CAMERA_HEIGHT],
@@ -334,6 +378,23 @@ class SimWorld:
             )
 
     @staticmethod
+    def _add_contents(
+        body: mujoco.MjsBody, name: str, top: tuple[float, float, float], half: tuple[float, float]
+    ) -> None:
+        """A flat disc of contents, drawn only (no collisions): what a pour moves around."""
+        cx, cy, z = top
+        body.add_geom(
+            name=f"contents_{name}",
+            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+            pos=[cx, cy, z + 0.0008],
+            size=[min(half) * 0.7, 0.0008, 0],
+            rgba=list(CONTENTS_RGBA),
+            contype=0,
+            conaffinity=0,
+            mass=0.0001,
+        )
+
+    @staticmethod
     def _add_handle(body: mujoco.MjsBody, block: BlockDef) -> None:
         """A glazed interior and a handle on +y, drawn only (no collisions)."""
         shape, rgba = block.shape, list(block.rgba)
@@ -406,6 +467,49 @@ class SimWorld:
         dx, dy = np.abs(self.lid_pos(name)[:2] - self.block_pos(name)[:2])
         return bool(dx > hx + 0.01 or dy > hy + STRIP_TAIL + 0.03)
 
+    def halves_of(self, name: str) -> tuple[str, str]:
+        """The two bodies a cut replaces ``name`` with."""
+        return self._halves[name]
+
+    def split(self, name: str) -> None:
+        """Replace a box with its two halves, lying side by side where it stood."""
+        if name not in self._halves:
+            raise ValueError(f"'{name}' is not something that can be cut in two")
+        pos = self.block_pos(name)
+        hx = self._shapes[name].half[0]
+        for sign, half in zip((1.0, -1.0), self._halves[name], strict=True):
+            self.set_block(half, (float(pos[0]) + sign * (hx / 2 + 0.008), float(pos[1])))
+            body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, half)
+            self.model.body_gravcomp[body_id] = 0.0  # a real object again
+        self._park(name)
+
+    def is_split(self, name: str) -> bool:
+        if name not in self._halves:
+            return False
+        gone = self.block_pos(name)[2] < 0.0
+        on_table = all(self.block_pos(h)[2] > 0.0 for h in self._halves[name])
+        return gone and on_table
+
+    def press(self, name: str) -> None:
+        """Press a pressable object: it latches down and darkens."""
+        if name not in self._pressed:  # latched: a second press changes nothing
+            geom = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, f"{name}_geom")
+            self.model.geom_rgba[geom, :3] *= 0.6
+            self._pressed.add(name)
+
+    def is_pressed(self, name: str) -> bool:
+        return name in self._pressed
+
+    def _park(self, name: str) -> None:
+        """Teleport a body far under the table and freeze it, out of the scene."""
+        joint = self.model.joint(int(self.model.body(name).jntadr[0]))
+        adr = int(joint.qposadr[0])
+        z = PARK_Z - 0.05 * self.block_names.index(name)  # its own depth slot, like at build time
+        self.data.qpos[adr : adr + 7] = [0.0, 0.0, z, 1, 0, 0, 0]
+        self.data.qvel[int(joint.dofadr[0]) : int(joint.dofadr[0]) + 6] = 0
+        self.model.body_gravcomp[self.model.body(name).id] = 1.0
+        mujoco.mj_forward(self.model, self.data)
+
     def surface_top(self, name: str) -> float:
         """Height of the top of an object or container tray."""
         if name in self._zones:
@@ -423,6 +527,24 @@ class SimWorld:
         """(stains still showing, stains it started with)."""
         geoms = self._dirt.get(surface, [])
         return sum(1 for g in geoms if self.model.geom_rgba[g, 3] > 0), len(geoms)
+
+    def pour_into(self, source: str, target: str) -> None:
+        """Everything in ``source`` ends up in ``target``: the disc moves, no drops, no amounts."""
+        if self._contents.get(source) is None:
+            raise ValueError(f"'{source}' has nothing to pour")
+        self._contents[source] = None
+        self._contents[target] = "poured"
+        self.model.geom_rgba[self._content_geoms[source], 3] = 0.0
+        self.model.geom_rgba[self._content_geoms[target], 3] = 1.0
+
+    def contents_of(self, name: str) -> str | None:
+        return self._contents.get(name)
+
+    def stir(self, name: str) -> None:
+        self._mixed.add(name)
+
+    def is_mixed(self, name: str) -> bool:
+        return name in self._mixed
 
     def tcp_pos(self) -> NDArray[np.float64]:
         return np.array(self.data.site_xpos[self.tcp_site])

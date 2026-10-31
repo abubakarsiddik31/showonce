@@ -40,6 +40,34 @@ def how_it_will_do(step: Step) -> str:
             )
         case "open":
             return f"I'll take hold of the seal on the {step.object}, tear it off and lay it aside."
+        case "place_near":
+            relation = step.relation or "next_to"
+            rel = "beside" if relation == "next_to" else relation.replace("_", " ")
+            return f"I'll pick up the {step.object} and set it down {rel} the {step.target}."
+        case "push":
+            push_rel = step.relation.replace("_", " ") if step.relation else None
+            where = f"{push_rel} the {step.target}" if push_rel else f"into the {step.target}"
+            return (
+                f"I'll put my fingers behind the {step.object} and push it {where}, "
+                "without lifting it."
+            )
+        case "pour":
+            return (
+                f"I'll hold the {step.object} over the {step.target} and pour, "
+                "tipping it until it is empty."
+            )
+        case "stir":
+            return (
+                f"I'll stir the {step.target} round and round with the {step.object} "
+                "until it is mixed."
+            )
+        case "cut":
+            return (
+                f"I'll draw the {step.object} across the {step.target}, cut it through, "
+                "and lay the two halves flat."
+            )
+        case "press":
+            return f"I'll press the {step.object} straight down, once and firmly."
 
 
 def clean_steps(
@@ -51,8 +79,8 @@ def clean_steps(
     for step in steps:
         if step.object not in known:
             continue
-        if step.action == "open":
-            out.append(Step(object=step.object, action="open", target=step.object))
+        if step.action in ("open", "press"):
+            out.append(Step(object=step.object, action=step.action, target=step.object))
         elif (
             (step.action == "place_in" and step.target in containers)
             or (step.action == "stack_on" and step.target in known and step.target != step.object)
@@ -61,6 +89,17 @@ def clean_steps(
                 and step.target != step.object
                 and (step.target in known or step.target in containers)
             )
+            or (step.action == "place_near" and step.target in known and step.target != step.object)
+            or (
+                step.action == "push"
+                and (
+                    step.target in containers
+                    or (step.target in known and step.target != step.object)
+                )
+            )
+            or (step.action == "pour" and step.target in containers)
+            or (step.action == "stir" and step.target in containers and step.target != step.object)
+            or (step.action == "cut" and step.target in known and step.target != step.object)
         ):
             out.append(step)
     return out

@@ -18,9 +18,21 @@ List every completed step in the order it happens. For each step give:
   "stack_on": an object ended up on top of another object
   "wipe": a sponge, cloth or brush was rubbed over a dish, surface or container to clean it
   "open": a sealed bag, packet or box was torn or opened
-- object: the object that was moved; for "wipe" the cleaning tool; for "open" the thing opened
+  "place_near": an object ended up on the table beside another object, not in or on it
+  "push": an object was slid across the table without ever being lifted
+  "pour": a cup or bottle was tipped so its contents went into a container
+  "stir": a spoon or tool was stirred round and round through a container's contents
+  "cut": something was cut into two pieces with a knife
+  "press": a button, pump or push-light was pressed straight down
+- object: the object that was moved; for "wipe" the cleaning tool; for "open" the thing opened;
+  for "pour" the cup poured; for "stir" the spoon; for "cut" the knife; for "push" the thing slid
 - target: for "place_in" the container, for "stack_on" the object underneath, for "wipe" the
-  thing being cleaned, for "open" the same as object
+  thing being cleaned, for "open" the same as object, for "place_near" the object it ended up
+  beside, for "push" where it was pushed to (container or object), for "pour" the container
+  poured into, for "stir" the container stirred, for "cut" the thing cut, for "press" the
+  same as object
+- relation: only for "place_near" (and "push" toward an object): one of "next_to", "left_of",
+  "right_of", "in_front_of", "behind", from the camera's point of view
 Only list steps that actually happened. Do not invent steps."""
 
 
@@ -37,7 +49,14 @@ def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, 
                         "object": {"type": "string", "enum": list(objects)},
                         "action": {
                             "type": "string",
-                            "enum": ["place_in", "stack_on", "wipe", "open"],
+                            "enum": [
+                                "place_in", "stack_on", "wipe", "open",
+                                "place_near", "push", "pour", "stir", "cut", "press",
+                            ],
+                        },
+                        "relation": {
+                            "type": "string",
+                            "enum": ["next_to", "left_of", "right_of", "in_front_of", "behind"],
                         },
                         "target": {"type": "string", "enum": [*objects, *containers]},
                     },
@@ -61,6 +80,7 @@ For each give:
 - height_cm: how tall it stands
 - handle: true if it has a handle that sticks out sideways (a mug or cup)
 - openable: true if it is a sealed bag, packet or box that gets opened (chips, a snack, cereal)
+- pressable: true only if it is a button, pump or push-light (something you press straight down)
 Use real-world sizes. A mug is about 8 cm wide and 9 cm tall."""
 
 
