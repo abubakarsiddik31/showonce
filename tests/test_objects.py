@@ -83,3 +83,15 @@ def test_each_object_gets_several_phrases_for_sam_best_first() -> None:
     packet = ObjectProfile(openable=True)
     assert sim_prompts("red chips", packet) == ["red packet", "red box", "red object"]
     assert sim_prompts("red mug", profile_from_name("red mug"))[:2] == ["red mug", "red cup"]
+
+
+def test_pressable_comes_from_the_description() -> None:
+    profile = profile_from_description(
+        {"shape": "cylinder", "width_cm": 8, "depth_cm": 8, "height_cm": 3, "pressable": True}
+    )
+    assert profile.pressable
+
+
+def test_pressable_prompts_lead_with_a_button() -> None:
+    profile = ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True, rgb=(0.9, 0.4, 0.1))
+    assert sim_prompts("orange lamp", profile)[0] == "orange button"

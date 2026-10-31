@@ -48,6 +48,7 @@ class ObjectProfile(BaseModel):
     height: float = 0.04
     handle: bool = False  # a handle sticking out sideways, as on a mug
     openable: bool = False  # a sealed bag, packet or box: a lid you pull off to get inside
+    pressable: bool = False  # a button, pump or push-light: press it straight down
     rgb: RGB | None = None  # colour sampled from the clip, used when the name has no colour word
 
 
@@ -106,6 +107,7 @@ def profile_from_description(description: dict[str, Any], rgb: RGB | None = None
         height=height,
         handle=bool(description.get("handle")) and shape == "cylinder",
         openable=bool(description.get("openable")) and shape == "box",
+        pressable=bool(description.get("pressable")),
         rgb=rgb,
     )
 
@@ -135,6 +137,8 @@ def sim_prompts(name: str, profile: ObjectProfile) -> list[str]:
         phrases = [f"{word} mug", f"{word} cup"]
     elif profile.openable:
         phrases = [f"{word} packet", f"{word} box"]
+    elif profile.pressable:
+        phrases = [f"{word} button", f"{word} lamp"]
     elif profile.shape == "cylinder" and profile.height < 0.4 * profile.width:
         phrases = [f"{word} plate", f"{word} circle", f"{word} round object", "round plate"]
     else:
