@@ -1,12 +1,27 @@
 import { z } from 'zod'
 
-export const actionSchema = z.enum(['place_in', 'stack_on', 'wipe', 'open'])
+export const actionSchema = z.enum([
+  'place_in',
+  'stack_on',
+  'wipe',
+  'open',
+  'place_near',
+  'push',
+  'pour',
+  'stir',
+  'cut',
+  'press',
+])
 export type Action = z.infer<typeof actionSchema>
+
+export const relationSchema = z.enum(['next_to', 'left_of', 'right_of', 'in_front_of', 'behind'])
+export type Relation = z.infer<typeof relationSchema>
 
 export const stepSchema = z.object({
   object: z.string(),
   action: actionSchema,
   target: z.string(),
+  relation: relationSchema.nullable().optional(),
   text: z.string().default(''),
   how: z.string().optional(),
 })

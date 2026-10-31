@@ -1,4 +1,10 @@
-import type { Step } from '../api/schemas'
+import type { Relation, Step } from '../api/schemas'
+
+export const RELATIONS: Relation[] = ['next_to', 'left_of', 'right_of', 'in_front_of', 'behind']
+
+export function describeRelation(relation?: Relation | null): string {
+  return (relation ?? 'next_to').replaceAll('_', ' ')
+}
 
 /** 83.2 -> "01:23.2" */
 export function formatTime(seconds: number): string {
@@ -8,12 +14,28 @@ export function formatTime(seconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${rest.toFixed(1).padStart(4, '0')}`
 }
 
-export function describeStep(step: Pick<Step, 'object' | 'action' | 'target'>): string {
+export function describeStep(
+  step: Pick<Step, 'object' | 'action' | 'target' | 'relation'>,
+): string {
   switch (step.action) {
     case 'place_in':
       return `put ${step.object} in ${step.target}`
     case 'stack_on':
       return `stack ${step.object} on ${step.target}`
+    case 'place_near':
+      return `put ${step.object} ${describeRelation(step.relation)} ${step.target}`
+    case 'push':
+      return step.relation
+        ? `push ${step.object} ${describeRelation(step.relation)} ${step.target}`
+        : `push ${step.object} into ${step.target}`
+    case 'pour':
+      return `pour ${step.object} into ${step.target}`
+    case 'stir':
+      return `stir ${step.target} with ${step.object}`
+    case 'cut':
+      return `cut ${step.target} with ${step.object}`
+    case 'press':
+      return `press ${step.object}`
     case 'wipe':
       return `wipe ${step.target} with ${step.object}`
     case 'open':
@@ -34,6 +56,17 @@ export function targetsFor(
       return containers
     case 'stack_on':
       return others
+    case 'place_near':
+      return others
+    case 'push':
+      return [...others, ...containers]
+    case 'pour':
+    case 'stir':
+      return containers
+    case 'cut':
+      return others
+    case 'press':
+      return [object]
     case 'wipe':
       return [...others, ...containers]
     case 'open':
