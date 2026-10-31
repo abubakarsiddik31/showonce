@@ -12,6 +12,8 @@ from typing import Any
 from showonce.api.jobs import Job, JobStore
 from showonce.api.questions import build_questions, step_model
 from showonce.api.schemas import (
+    ChatMessage,
+    ChatReply,
     CheckOut,
     ContainerOut,
     LearnResultOut,
@@ -21,10 +23,12 @@ from showonce.api.schemas import (
     SampleOut,
     StepModel,
 )
+from showonce.chat import talk
 from showonce.config import Settings
 from showonce.demo import Learned, frame_size, learn_from_video
 from showonce.meta.client import MetaClient
 from showonce.perception.pipeline import video_fps
+from showonce.perception.scene import discover_scene
 from showonce.program import Step, TaskProgram
 from showonce.scene_spec import SceneSpec
 from showonce.sim.record import SIM_FPS
@@ -143,9 +147,14 @@ class Workspace:
         scene = SceneSpec.load(scene_path)
 
         def work(progress: Any) -> LearnResultOut:
-            progress("Watching the clip with SAM 3.1 and Muse Spark")
             with MetaClient(self.settings) as client:
-                learned = learn_from_video(client, video, scene)
+                found = scene
+                if not found.prompts:  # a bare clip: find out what is on the table first
+                    progress("Looking at the table to see what is on it")
+                    found = discover_scene(client, video, found.name)
+                    scene_path.write_text(found.model_dump_json(indent=2))
+                progress("Watching the clip with SAM 3.1 and Muse Spark")
+                learned = learn_from_video(client, video, found)
             path = self._resolved_scene_path(sample_id)
             path.parent.mkdir(parents=True, exist_ok=True)
             assert learned.scene is not None
@@ -193,6 +202,8 @@ class Workspace:
                 )
                 for m in learned.observation.moves
             ],
+            object_names=list(learned.scene.prompts),
+            container_names=[c.name for c in learned.scene.containers],
             containers=[
                 ContainerOut(
                     name=c.name,
@@ -203,6 +214,24 @@ class Workspace:
                 )
                 for c in learned.scene.containers
             ],
+        )
+
+    # -- chat ----------------------------------------------------------------------------
+
+    def chat(
+        self, sample_id: str, messages: list[ChatMessage], steps: list[StepModel]
+    ) -> ChatReply:
+        """One turn of talking the plan through, in the context of what is on this table."""
+        resolved = self._resolved_scene_path(sample_id)
+        scene = SceneSpec.load(resolved if resolved.is_file() else self._sample_files(sample_id)[1])
+        objects = list(scene.prompts)
+        containers = [c.name for c in scene.containers] or list(scene.container_prompts)
+        plan = [Step(object=s.object, action=s.action, target=s.target) for s in steps]
+        conversation: list[tuple[str, str]] = [(m.role, m.text) for m in messages]
+        with MetaClient(self.settings) as client:
+            turn = talk(client, objects, containers, plan, conversation)
+        return ChatReply(
+            reply=turn.reply, steps=[step_model(s) for s in turn.steps], confirmed=turn.confirmed
         )
 
     # -- run -----------------------------------------------------------------------------

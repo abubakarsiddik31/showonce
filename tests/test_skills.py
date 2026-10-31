@@ -1,4 +1,5 @@
 import itertools
+import math
 
 import pytest
 
@@ -8,7 +9,7 @@ from showonce.program import Step, TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.executor import ExecutionError, Layout, build_world, execute, verify
 from showonce.sim.scene import DEFAULT_ASSET_DIR
-from showonce.sim.skills import wipe_path
+from showonce.sim.skills import circle_path, wipe_path
 
 needs_panda = pytest.mark.skipif(
     not (DEFAULT_ASSET_DIR / "panda.xml").exists(), reason="Panda model missing"
@@ -100,3 +101,18 @@ def test_opening_something_that_is_not_a_packet_is_refused() -> None:
     )
     with pytest.raises(ExecutionError, match="not something"):
         execute(program, world, PandaController(world), [])
+
+
+def test_circular_scrub_starts_at_the_middle_and_stays_on_the_dish() -> None:
+    centre, radius, tool = (0.5, 0.0), 0.08, (0.034, 0.022)
+    path = circle_path(centre, radius, tool)
+    assert path[0] == centre
+    assert all(math.dist(p, centre) <= radius - tool[1] + 1e-9 for p in path)
+    reach = max(math.dist(p, centre) for p in path)
+    assert reach == pytest.approx(radius - tool[1])  # the outer ring reaches the rim
+    rings = sorted({round(math.dist(p, centre), 4) for p in path})
+    assert all(b - a <= 1.4 * tool[1] + 1e-3 for a, b in itertools.pairwise(rings))  # no gaps
+
+
+def test_circular_scrub_on_a_dish_smaller_than_the_sponge_stays_in_the_middle() -> None:
+    assert set(circle_path((0.5, 0.0), 0.01, (0.034, 0.022))) == {(0.5, 0.0)}

@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 
 from showonce.api.jobs import Job
 from showonce.api.schemas import (
+    ChatReply,
+    ChatRequest,
     JobOut,
     JobRef,
     LearnRequest,
@@ -62,7 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/learn/upload")
     async def learn_upload(
         video: Annotated[UploadFile, File()],
-        objects: Annotated[str, Form(description="JSON object: name -> SAM prompt")],
+        objects: Annotated[str, Form(description="JSON object: name -> SAM prompt")] = "{}",
         containers: Annotated[str, Form(description="JSON object: name -> SAM prompt")] = "{}",
     ) -> JobRef:
         try:
@@ -70,11 +72,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             container_prompts = json.loads(containers)
         except json.JSONDecodeError as exc:
             raise HTTPException(422, f"Invalid JSON: {exc}") from exc
-        if not prompts:
-            raise HTTPException(422, "Name at least one object to track")
         scene = SceneSpec(name="upload", prompts=prompts, container_prompts=container_prompts)
         upload_id = workspace.add_upload(await video.read(), scene)
         return JobRef(job_id=workspace.start_learn(upload_id).id)
+
+    @app.post("/api/chat")
+    def chat(body: ChatRequest) -> ChatReply:
+        try:
+            return workspace.chat(body.sample_id, body.messages, body.steps)
+        except NotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
     @app.post("/api/run")
     def run(body: RunRequest) -> JobRef:

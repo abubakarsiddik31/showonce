@@ -1,6 +1,13 @@
 import type { z } from 'zod'
 
-import { healthSchema, jobRefSchema, jobSchema, sampleSchema, type Step } from './schemas'
+import {
+  chatReplySchema,
+  healthSchema,
+  jobRefSchema,
+  jobSchema,
+  sampleSchema,
+  type Step,
+} from './schemas'
 
 export class ApiError extends Error {
   readonly status: number
@@ -36,6 +43,11 @@ export const api = {
     request('/api/learn', jobRefSchema, json({ sampleId })).then((r) => r.jobId),
   learnUpload: (form: FormData) =>
     request('/api/learn/upload', jobRefSchema, { method: 'POST', body: form }).then((r) => r.jobId),
+  chat: (body: {
+    sampleId: string
+    messages: Array<{ role: 'person' | 'robot'; text: string }>
+    steps: Step[]
+  }) => request('/api/chat', chatReplySchema, json(body)),
   run: (body: { sampleId: string; steps: Step[]; seed: number; oracle: boolean }) =>
     request('/api/run', jobRefSchema, json(body)).then((r) => r.jobId),
 }

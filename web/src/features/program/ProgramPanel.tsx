@@ -1,5 +1,6 @@
 import { ArrowCounterClockwise, ListChecks, Plus } from '@phosphor-icons/react'
 import { AnimatePresence, Reorder } from 'motion/react'
+import type { ReactNode } from 'react'
 
 import type { LearnResult, Sample } from '../../api/schemas'
 import { Button } from '../../components/Button'
@@ -16,16 +17,26 @@ interface Props {
   answer: string | null
   edited: boolean
   dispatch: (action: WorkbenchAction) => void
+  /** The talk-it-through panel, shown once there is something to talk about. */
+  conversation?: ReactNode
 }
 
-export function ProgramPanel({ sample, learn, steps, answer, edited, dispatch }: Props) {
+export function ProgramPanel({
+  sample,
+  learn,
+  steps,
+  answer,
+  edited,
+  dispatch,
+  conversation,
+}: Props) {
   const question = learn?.questions[0]
 
   return (
     <Section
       index="02"
       title="Task program"
-      hint="Steps name objects and containers, never positions, so they work on any layout. Edit them freely."
+      hint="The robot says what it understood. Correct it in words, or edit the steps directly: they name objects, never positions, so they work on any layout."
       aside={
         edited ? (
           <Button
@@ -45,6 +56,7 @@ export function ProgramPanel({ sample, learn, steps, answer, edited, dispatch }:
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-4">
+          {conversation}
           {question && (
             <AskCard
               question={question}
@@ -55,6 +67,7 @@ export function ProgramPanel({ sample, learn, steps, answer, edited, dispatch }:
               }}
             />
           )}
+          <p className="-mb-2 font-mono text-xs text-ink-faint">The plan</p>
           <Reorder.Group
             axis="y"
             values={steps}

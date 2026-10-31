@@ -30,6 +30,7 @@ class StepModel(ApiModel):
     action: Action
     target: str
     text: str = ""
+    how: str = ""  # in plain words, how the robot will do it
 
 
 class OptionOut(ApiModel):
@@ -83,6 +84,8 @@ class LearnResultOut(ApiModel):
     rests: list[RestOut]
     moves: list[MoveOut]
     containers: list[ContainerOut]
+    object_names: list[str]  # everything the robot found on the table
+    container_names: list[str]
 
 
 class CheckOut(ApiModel):
@@ -112,6 +115,23 @@ class JobOut(ApiModel):
 
 class JobRef(ApiModel):
     job_id: str
+
+
+class ChatMessage(ApiModel):
+    role: Literal["person", "robot"]
+    text: str
+
+
+class ChatRequest(ApiModel):
+    sample_id: str
+    messages: list[ChatMessage] = Field(min_length=1)
+    steps: list[StepModel]
+
+
+class ChatReply(ApiModel):
+    reply: str
+    steps: list[StepModel]
+    confirmed: bool
 
 
 class LearnRequest(ApiModel):

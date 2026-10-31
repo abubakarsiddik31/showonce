@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from showonce.api.schemas import OptionOut, QuestionOut, StepModel
+from showonce.chat import how_it_will_do
 from showonce.program import Step
 
 
 def step_model(step: Step) -> StepModel:
-    return StepModel(object=step.object, action=step.action, target=step.target, text=str(step))
+    return StepModel(
+        object=step.object,
+        action=step.action,
+        target=step.target,
+        text=str(step),
+        how=how_it_will_do(step),
+    )
 
 
 def build_questions(

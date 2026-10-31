@@ -14,7 +14,14 @@ import httpx
 
 from showonce.cache import JsonCache, hash_file, make_key
 from showonce.config import Settings
-from showonce.meta.muse import build_request, describe_request, parse_steps, response_text
+from showonce.meta.muse import (
+    build_request,
+    chat_request,
+    describe_request,
+    parse_steps,
+    response_text,
+    scene_request,
+)
 from showonce.meta.sam import Detection, parse_sam_text
 from showonce.program import Step
 
@@ -148,6 +155,33 @@ class MetaClient:
         text = response_text(resp.json())
         self.cache.set(key, {"text": text})
         return dict(json.loads(text))
+
+    def describe_scene(self, png: bytes) -> dict[str, Any]:
+        """Ask Muse Spark what objects and containers are on the table in this frame."""
+        data_url = "data:image/png;base64," + base64.b64encode(png).decode()
+        body = scene_request(self.settings.plan_model, data_url)
+        key = make_key("scene-v2", hashlib.sha256(png).hexdigest())
+        cached = self.cache.get(key)
+        if cached is not None:
+            return dict(json.loads(str(cached["text"])))
+        resp = self._http.post("/responses", json=body)
+        self._raise_for_status(resp)
+        text = response_text(resp.json())
+        self.cache.set(key, {"text": text})
+        return dict(json.loads(text))
+
+    def chat(
+        self,
+        objects: list[str],
+        containers: list[str],
+        plan: list[Step],
+        conversation: list[tuple[str, str]],
+    ) -> dict[str, Any]:
+        """One turn of talking the plan through. Not cached: the answer depends on the turn."""
+        body = chat_request(self.settings.plan_model, objects, containers, plan, conversation)
+        resp = self._http.post("/responses", json=body)
+        self._raise_for_status(resp)
+        return dict(json.loads(response_text(resp.json())))
 
     def _stream_text(self, body: dict[str, Any]) -> Iterator[str]:
         """Yield ``response.output_text.delta`` chunks from a streaming Responses call."""

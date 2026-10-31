@@ -114,6 +114,132 @@ def describe_request(model: str, image_url: str, objects: Sequence[str]) -> dict
     }
 
 
+SCENE_PROMPT = """\
+This photo is of a table, seen from above, at the start of a short clip in which a person does a
+task with their hands. List what is on the table:
+- objects: every separate thing a person could pick up or work on (not the hand, the table or
+  the background)
+- containers: an empty tray, bowl, box, rack, basket or bin that is there to hold other things.
+  A plate, dish, mug or cup is an object, not a container, and so is anything that looks used,
+  stained or dirty.
+Give each a short name of at most three words that includes its colour, such as "red mug" or
+"white plate". Every name must be different, so tell look-alikes apart by colour or position.
+For each also give "find": a short phrase for finding it again in a photo, usually its name."""
+
+
+def scene_schema() -> dict[str, Any]:
+    """JSON schema for what is on the table."""
+    thing = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}, "find": {"type": "string"}},
+        "required": ["name", "find"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "objects": {"type": "array", "items": thing},
+            "containers": {"type": "array", "items": thing},
+        },
+        "required": ["objects", "containers"],
+        "additionalProperties": False,
+    }
+
+
+def scene_request(model: str, image_url: str) -> dict[str, Any]:
+    return _image_request(model, image_url, SCENE_PROMPT, "table_contents", scene_schema())
+
+
+CHAT_PROMPT = """\
+You are teaching a one-armed robot a tabletop task. The person showed it a video, and the robot
+wrote down what it thinks they did, as a plan. You are the robot, talking to the person.
+
+Objects on the table: {objects}.
+Containers: {containers}.
+Each plan step is one of:
+- place_in: an object ends up inside a container (target is the container)
+- stack_on: an object ends up on top of another object (target is that object)
+- wipe: a sponge or cloth is rubbed over something to clean it (object is the tool, target is
+  the thing cleaned)
+- open: a sealed bag or packet is torn open (target is the same as object)
+
+The plan as it stands:
+{plan}
+
+The conversation so far:
+{conversation}
+
+Reply to the person's last message. If they correct or add something, change the plan to match,
+using only the objects and containers above. If they ask a question, answer it and leave the plan
+alone. If they say the plan is right ("yes", "that's right", "go ahead"), set confirmed to true.
+Keep reply to one to three short, plain sentences, say what you changed, and never mention
+JSON or schemas."""
+
+
+def chat_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, Any]:
+    """JSON schema for a reply: what to say, the revised plan, and whether it was confirmed."""
+    schema = step_schema(objects, containers)
+    return {
+        "type": "object",
+        "properties": {
+            "reply": {"type": "string"},
+            "steps": schema["properties"]["steps"],
+            "confirmed": {"type": "boolean"},
+        },
+        "required": ["reply", "steps", "confirmed"],
+        "additionalProperties": False,
+    }
+
+
+def chat_request(
+    model: str,
+    objects: Sequence[str],
+    containers: Sequence[str],
+    plan: Sequence[Step],
+    conversation: Sequence[tuple[str, str]],
+) -> dict[str, Any]:
+    """``conversation`` is (speaker, text) pairs, speaker being "person" or "robot"."""
+    prompt = CHAT_PROMPT.format(
+        objects=", ".join(objects) or "none",
+        containers=", ".join(containers) or "none",
+        plan="\n".join(f"{i}. {s}" for i, s in enumerate(plan, 1)) or "(empty)",
+        conversation="\n".join(f"{who}: {text}" for who, text in conversation),
+    )
+    return {
+        "model": model,
+        "input": [
+            {"type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt}]}
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "robot_reply",
+                "schema": chat_schema(objects, containers),
+                "strict": True,
+            }
+        },
+    }
+
+
+def _image_request(
+    model: str, image_url: str, prompt: str, name: str, schema: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": image_url},
+                ],
+            }
+        ],
+        "text": {"format": {"type": "json_schema", "name": name, "schema": schema, "strict": True}},
+    }
+
+
 def build_request(
     model: str, file_id: str, objects: Sequence[str], containers: Sequence[str]
 ) -> dict[str, Any]:

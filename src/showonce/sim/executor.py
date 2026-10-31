@@ -128,7 +128,20 @@ def execute(
                 top = TRAY_FLOOR
             else:
                 raise ExecutionError(f"Unknown surface '{step.target}' in step: {step}")
-            wipe(world, controller, step.object, where(step.object), step.target, centre, half, top)
+            round_surface = (
+                step.target in world.block_names and world.shape(step.target).kind != "box"
+            )
+            wipe(
+                world,
+                controller,
+                step.object,
+                where(step.object),
+                step.target,
+                centre,
+                half,
+                top,
+                round_surface=round_surface,
+            )
             if on_step_done is not None:
                 on_step_done(index, str(step))
             continue

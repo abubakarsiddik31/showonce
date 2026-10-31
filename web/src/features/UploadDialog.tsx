@@ -2,12 +2,9 @@ import { UploadSimple } from '@phosphor-icons/react'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from '../components/Button'
-import { parseLines } from '../lib/parse'
 
 export interface UploadSpec {
   file: File
-  objects: Record<string, string>
-  containers: Record<string, string>
 }
 
 interface Props {
@@ -23,10 +20,6 @@ export function UploadDialog({ open, onClose, onSubmit }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const id = useId()
   const [file, setFile] = useState<File | null>(null)
-  const [objects, setObjects] = useState('')
-  const [containers, setContainers] = useState('')
-  const parsed = parseLines(objects)
-  const valid = file !== null && Object.keys(parsed).length > 0
 
   // The native dialog gives focus trapping and Escape for free.
   useEffect(() => {
@@ -40,60 +33,32 @@ export function UploadDialog({ open, onClose, onSubmit }: Props) {
     <dialog
       ref={ref}
       onClose={onClose}
-      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-line-strong bg-raised p-0 text-ink backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+      className="m-auto w-[min(30rem,calc(100vw-2rem))] rounded-2xl border border-line-strong bg-raised p-0 text-ink backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
       <form
         className="flex flex-col gap-5 p-6"
         onSubmit={(e) => {
           e.preventDefault()
-          if (file && valid) onSubmit({ file, objects: parsed, containers: parseLines(containers) })
+          if (file) onSubmit({ file })
         }}
       >
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Teach it your own clip</h2>
           <p className="mt-1 text-sm leading-relaxed text-ink-dim">
-            Use an overhead clip of one tabletop task. Name what to track so SAM knows what to look
-            for.
+            Film one task from above, with the camera still, and upload it. You do not need to name
+            anything: the robot looks at the table itself, tells you what it understood, and you
+            correct it in words.
           </p>
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor={`${id}-file`} className="text-sm font-medium">
-            Video
+            Video (mp4)
           </label>
           <input
             id={`${id}-file`}
             type="file"
-            accept="video/*"
+            accept="video/mp4,video/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className={fieldClass}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label htmlFor={`${id}-objects`} className="text-sm font-medium">
-            Objects to move
-          </label>
-          <textarea
-            id={`${id}-objects`}
-            rows={3}
-            value={objects}
-            onChange={(e) => setObjects(e.target.value)}
-            placeholder={'red mug\nblue mug: blue ceramic mug'}
-            className={fieldClass}
-          />
-          <p className="text-xs text-ink-faint">
-            One per line. Optional text after a colon is what SAM searches for.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          <label htmlFor={`${id}-containers`} className="text-sm font-medium">
-            Containers
-          </label>
-          <textarea
-            id={`${id}-containers`}
-            rows={2}
-            value={containers}
-            onChange={(e) => setContainers(e.target.value)}
-            placeholder="tray: gray tray"
             className={fieldClass}
           />
         </div>
@@ -104,10 +69,10 @@ export function UploadDialog({ open, onClose, onSubmit }: Props) {
           <Button
             variant="primary"
             type="submit"
-            disabled={!valid}
+            disabled={file === null}
             icon={<UploadSimple size={18} />}
           >
-            Learn from clip
+            Watch my clip
           </Button>
         </div>
       </form>

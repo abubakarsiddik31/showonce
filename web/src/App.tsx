@@ -11,9 +11,11 @@ import {
   useStartRun,
   useStartUpload,
 } from './api/hooks'
-import type { Sample } from './api/schemas'
+import type { Sample, Step } from './api/schemas'
 import { ErrorNote } from './components/ErrorNote'
 import { Skeleton } from './components/Skeleton'
+import { ChatPanel } from './features/chat/ChatPanel'
+import { useConversation } from './features/chat/useConversation'
 import { ProgramPanel } from './features/program/ProgramPanel'
 import { RunPanel } from './features/run/RunPanel'
 import { TeachPanel } from './features/teach/TeachPanel'
@@ -43,8 +45,18 @@ export default function App() {
   const runJob = useJob(runJobId)
 
   const list = samples.data
-  const sample = custom ?? list?.find((s) => s.id === selectedId) ?? list?.[0] ?? null
   const learn = learnJob.data?.learn ?? null
+  const picked = custom ?? list?.find((s) => s.id === selectedId) ?? list?.[0] ?? null
+  // A clip you upload has no object list until the robot has looked at the table.
+  const sample =
+    picked && custom && learn
+      ? { ...picked, objects: learn.objectNames, containers: learn.containerNames }
+      : picked
+
+  const revise = useCallback((steps: Step[]) => dispatch({ type: 'revise', steps }), [])
+  const plan = useMemo(() => state.steps.map(({ id: _id, ...rest }) => rest), [state.steps])
+  const conversation = useConversation(learn?.sampleId ?? null, plan, revise)
+  const { start: startConversation, reset: resetConversation } = conversation
 
   // Load the learned steps into the editor once per finished learn job.
   const loaded = useRef<string | null>(null)
@@ -52,15 +64,17 @@ export default function App() {
     if (learn && learnJobId && loaded.current !== learnJobId) {
       loaded.current = learnJobId
       dispatch({ type: 'learned', steps: learn.steps })
+      startConversation(learn.steps)
     }
-  }, [learn, learnJobId])
+  }, [learn, learnJobId, startConversation])
 
   const clearTask = useCallback(() => {
     setLearnJobId(null)
     setRunJobId(null)
     loaded.current = null
     dispatch({ type: 'reset' })
-  }, [])
+    resetConversation()
+  }, [resetConversation])
 
   const select = (id: string) => {
     setCustom(null)
@@ -71,8 +85,6 @@ export default function App() {
   const sendUpload = (spec: UploadSpec) => {
     const form = new FormData()
     form.set('video', spec.file)
-    form.set('objects', JSON.stringify(spec.objects))
-    form.set('containers', JSON.stringify(spec.containers))
     startUpload.mutate(form, { onSuccess: setLearnJobId })
   }
 
@@ -84,8 +96,8 @@ export default function App() {
       id: 'upload',
       name: spec.file.name.replace(/\.[^.]+$/, ''),
       videoUrl: URL.createObjectURL(spec.file),
-      objects: Object.keys(spec.objects),
-      containers: Object.keys(spec.containers),
+      objects: [],
+      containers: [],
       durationS: 0,
     })
     sendUpload(spec)
@@ -101,9 +113,8 @@ export default function App() {
 
   const runNow = () => {
     if (!learn) return
-    const steps = state.steps.map(({ id: _id, ...rest }) => rest)
     startRun.mutate(
-      { sampleId: learn.sampleId, steps, seed: state.seed, oracle: state.oracle },
+      { sampleId: learn.sampleId, steps: plan, seed: state.seed, oracle: state.oracle },
       {
         onSuccess: (id) => {
           setRunJobId(id)
@@ -158,6 +169,16 @@ export default function App() {
                 answer={state.answer}
                 edited={edited}
                 dispatch={dispatch}
+                conversation={
+                  <ChatPanel
+                    messages={conversation.messages}
+                    confirmed={conversation.confirmed}
+                    thinking={conversation.thinking}
+                    onSend={conversation.send}
+                    onConfirm={conversation.confirm}
+                    onNotQuite={conversation.notQuite}
+                  />
+                }
               />
             </div>
             <div className="md:col-span-2 md:border-t md:border-line md:pt-10 xl:col-span-1 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-10">

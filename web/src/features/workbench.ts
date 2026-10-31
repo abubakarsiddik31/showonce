@@ -21,6 +21,7 @@ export type WorkbenchAction =
   | { type: 'remove'; id: string }
   | { type: 'add'; step: Step }
   | { type: 'reorder'; steps: EditableStep[] }
+  | { type: 'revise'; steps: Step[] }
   | { type: 'restore' }
   | { type: 'seed'; seed: number }
   | { type: 'oracle'; oracle: boolean }
@@ -47,6 +48,8 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
       const steps = withIds(action.steps)
       return { ...state, steps, learned: steps, answer: null }
     }
+    case 'revise':
+      return { ...state, steps: withIds(action.steps) }
     case 'answer':
       return { ...state, steps: withIds(action.steps), answer: action.optionId }
     case 'edit':

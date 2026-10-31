@@ -25,3 +25,4 @@ export function useJob(jobId: string | null) {
 export const useStartLearn = () => useMutation({ mutationFn: api.learn })
 export const useStartUpload = () => useMutation({ mutationFn: api.learnUpload })
 export const useStartRun = () => useMutation({ mutationFn: api.run })
+export const useChat = () => useMutation({ mutationFn: api.chat })

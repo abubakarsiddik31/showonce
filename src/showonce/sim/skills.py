@@ -35,6 +35,21 @@ def wipe_path(centre: XY, half: XY, tool_half: XY) -> list[XY]:
     return path
 
 
+def circle_path(centre: XY, radius: float, tool_half: XY) -> list[XY]:
+    """Scrub in rings: the centre first, then circles of growing radius, as a hand would."""
+    spacing = 1.4 * min(tool_half)
+    reach = max(0.0, radius - min(tool_half))
+    rings = max(1, math.ceil(reach / spacing))
+    path: list[XY] = [centre]
+    for k in range(1, rings + 1):
+        r = reach * k / rings
+        points = max(10, min(28, round(2 * math.pi * r / 0.025)))
+        for i in range(points + 1):  # the last point closes the ring where it started
+            a = 2 * math.pi * i / points
+            path.append((centre[0] + r * math.cos(a), centre[1] + r * math.sin(a)))
+    return path
+
+
 def wipe(
     world: SimWorld,
     controller: PandaController,
@@ -44,11 +59,21 @@ def wipe(
     centre: XY,
     half: XY,
     top: float,
+    *,
+    round_surface: bool = False,
 ) -> None:
-    """Pick up ``tool``, scrub the whole of ``surface`` with it and put it back."""
+    """Pick up ``tool``, scrub the whole of ``surface`` with it and put it back.
+
+    Round dishes are scrubbed in circles and everything else in back-and-forth strokes. Either
+    way it is the robot's own way of cleaning: it need not copy the hand it watched.
+    """
     hx, hy, hz = world.shape(tool).half
     z = top + hz + CLEARANCE  # the gripper holds the tool at its center
-    path = wipe_path(centre, half, (hx, hy))
+    path = (
+        circle_path(centre, min(half), (hx, hy))
+        if round_surface
+        else wipe_path(centre, half, (hx, hy))
+    )
 
     def clean() -> None:
         tcp = world.tcp_pos()

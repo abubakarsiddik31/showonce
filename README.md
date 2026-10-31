@@ -84,6 +84,25 @@ Names are only a fallback guess when Muse Spark cannot answer.
 - SAM finds each object in the sim by a phrase built from its profile ("red mug", "orange
   ball"), so two objects with the same colour and shape would be confused.
 
+## Teach it your own clip
+
+Press **Your clip** in the web app and pick an overhead mp4. You do not name anything:
+
+1. **It looks.** Muse Spark reads the clip's first frame and lists what is on the table (objects
+   and containers), and SAM 3.1 tracks each one through the clip.
+2. **It says what it understood**, in plain words, as a plan: "wipe white plate with yellow
+   sponge", "open red chips".
+3. **You correct it by talking.** "Only the white plate needs cleaning", "also put the blue mug in
+   the tray". Each reply revises the plan and the robot says what it changed. Replies are checked
+   before they are used: a plan can only name objects and containers that are really on the
+   table, so the model cannot invent things. You can also edit the steps directly.
+4. **You confirm, and it tells you how it will do it.** It does not copy the hand: a wipe becomes
+   its own circular scrub, an open becomes its own tear, a put becomes a pick and place, wherever
+   things are on the table. What carries over is the goal, not the motion.
+5. **It runs on a shuffled table** and checks the outcome against the simulator.
+
+The same steps work for the sample clips, which come with a scene file for repeatable tests.
+
 ## Skills
 
 A learned step is one of four actions, each with its own motion in the simulator and a check

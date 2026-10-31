@@ -8,6 +8,7 @@ export const stepSchema = z.object({
   action: actionSchema,
   target: z.string(),
   text: z.string().default(''),
+  how: z.string().optional(),
 })
 export type Step = z.infer<typeof stepSchema>
 
@@ -62,6 +63,8 @@ export const learnResultSchema = z.object({
   containers: z.array(
     z.object({ name: z.string(), x1: z.number(), y1: z.number(), x2: z.number(), y2: z.number() }),
   ),
+  objectNames: z.array(z.string()),
+  containerNames: z.array(z.string()),
 })
 export type LearnResult = z.infer<typeof learnResultSchema>
 export type Move = LearnResult['moves'][number]
@@ -86,6 +89,13 @@ export const jobSchema = z.object({
   run: runResultSchema.nullable().optional(),
 })
 export type Job = z.infer<typeof jobSchema>
+
+export const chatReplySchema = z.object({
+  reply: z.string(),
+  steps: z.array(stepSchema),
+  confirmed: z.boolean(),
+})
+export type ChatReply = z.infer<typeof chatReplySchema>
 
 export const jobRefSchema = z.object({ jobId: z.string() })
 export const healthSchema = z.object({ ok: z.boolean(), metaKey: z.boolean() })
