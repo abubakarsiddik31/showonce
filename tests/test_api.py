@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from showonce.api.app import create_app
 from showonce.api.questions import build_questions
+from showonce.api.schemas import StepModel
 from showonce.config import Settings
 from showonce.program import Step
 
@@ -68,3 +69,10 @@ def test_run_before_learning_is_409(client: TestClient) -> None:
 
 def test_unknown_job_is_404(client: TestClient) -> None:
     assert client.get("/api/jobs/nope").status_code == 404
+
+
+def test_step_model_accepts_the_new_actions_and_relation() -> None:
+    step = StepModel(object="a", action="place_near", target="b", relation="left_of")
+    assert step.relation == "left_of"
+    data = StepModel(object="c", action="press", target="c").model_dump(by_alias=True)
+    assert data["action"] == "press" and data.get("relation") is None

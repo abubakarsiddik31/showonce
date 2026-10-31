@@ -53,7 +53,7 @@ def _duration(video: Path) -> float:
 
 
 def run_worker(
-    scene_json: str, steps: list[dict[str, str]], seed: int, oracle: bool, out: str
+    scene_json: str, steps: list[dict[str, Any]], seed: int, oracle: bool, out: str
 ) -> dict[str, Any]:
     """Replay on a shuffled table in a child process (the renderer needs a main thread)."""
     from showonce.config import get_settings
@@ -226,7 +226,10 @@ class Workspace:
         scene = SceneSpec.load(resolved if resolved.is_file() else self._sample_files(sample_id)[1])
         objects = list(scene.prompts)
         containers = [c.name for c in scene.containers] or list(scene.container_prompts)
-        plan = [Step(object=s.object, action=s.action, target=s.target) for s in steps]
+        plan = [
+            Step(object=s.object, action=s.action, target=s.target, relation=s.relation)
+            for s in steps
+        ]
         conversation: list[tuple[str, str]] = [(m.role, m.text) for m in messages]
         with MetaClient(self.settings) as client:
             turn = talk(client, objects, containers, plan, conversation)
@@ -244,7 +247,10 @@ class Workspace:
         run_id = uuid.uuid4().hex[:10]
         out = self.runs_dir / "web" / run_id / "sim.mp4"
         out.parent.mkdir(parents=True, exist_ok=True)
-        payload = [{"object": s.object, "action": s.action, "target": s.target} for s in steps]
+        payload = [
+            {"object": s.object, "action": s.action, "target": s.target, "relation": s.relation}
+            for s in steps
+        ]
 
         def work(progress: Any) -> RunResultOut:
             progress("Shuffling the table and running the arm")

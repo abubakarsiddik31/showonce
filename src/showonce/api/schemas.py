@@ -9,7 +9,10 @@ from pydantic.alias_generators import to_camel
 
 JobStatus = Literal["queued", "running", "done", "failed"]
 JobKind = Literal["learn", "run"]
-Action = Literal["place_in", "stack_on", "wipe", "open"]
+Action = Literal[
+    "place_in", "stack_on", "wipe", "open", "place_near", "push", "pour", "stir", "cut", "press"
+]
+Relation = Literal["next_to", "left_of", "right_of", "in_front_of", "behind"]
 
 
 class ApiModel(BaseModel):
@@ -29,6 +32,7 @@ class StepModel(ApiModel):
     object: str
     action: Action
     target: str
+    relation: Relation | None = None
     text: str = ""
     how: str = ""  # in plain words, how the robot will do it
 
