@@ -41,6 +41,7 @@ class Shape:
     half: tuple[float, float, float]  # half extents along x, y, z
     handle: float = 0.0  # how far a handle sticks out along +y; the gripper closes along x
     openable: bool = False  # a sealed packet: its seal strip is a separate body
+    pressable: bool = False  # a button or pump: press it straight down
 
     @property
     def half_height(self) -> float:
@@ -71,7 +72,7 @@ class Shape:
 def shape_of(profile: ObjectProfile) -> Shape:
     half = (profile.width / 2, profile.depth / 2, profile.height / 2)
     handle = 0.5 * half[0] if profile.handle else 0.0
-    return Shape(profile.shape, half, handle, profile.openable)
+    return Shape(profile.shape, half, handle, profile.openable, profile.pressable)
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,10 +157,21 @@ class SimWorld:
         }
         for name in pour_targets:
             self.model.geom_rgba[self._content_geoms[name], 3] = 0.0  # empty until poured into
+        names = set(self.block_names)
+        self._halves = {
+            b.name: (f"{b.name} half a", f"{b.name} half b")
+            for b in blocks
+            if f"{b.name} half a" in names and f"{b.name} half b" in names
+        }
+        self._pressed: set[str] = set()
         for body_id in range(1, self.model.nbody):
             self.model.body_gravcomp[body_id] = 0.0 if body_id in free else 1.0
         self.tcp_site = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "tcp")
         self.hand_body = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "hand")
+        for pair in self._halves.values():
+            for half in pair:
+                body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, half)
+                self.model.body_gravcomp[body_id] = 1.0  # frozen while parked
         self.reset()
 
     @staticmethod
@@ -228,6 +240,10 @@ class SimWorld:
                     objtype=mujoco.mjtObj.mjOBJ_BODY,
                 )
                 eq.active = False
+        for block in blocks:
+            if f"{block.name} half a" in {b.name for b in blocks}:
+                for half in (f"{block.name} half a", f"{block.name} half b"):
+                    spec.body(half).pos = [0.0, 0.0, -0.4]  # parked under the table until the cut
         world.add_camera(
             name=CAMERA_NAME,
             pos=[WORK_CENTER_X, 0.0, CAMERA_HEIGHT],
@@ -448,6 +464,47 @@ class SimWorld:
         hx, hy, _ = self._shapes[name].half
         dx, dy = np.abs(self.lid_pos(name)[:2] - self.block_pos(name)[:2])
         return bool(dx > hx + 0.01 or dy > hy + STRIP_TAIL + 0.03)
+
+    def halves_of(self, name: str) -> tuple[str, str]:
+        """The two bodies a cut replaces ``name`` with."""
+        return self._halves[name]
+
+    def split(self, name: str) -> None:
+        """Replace a box with its two halves, lying side by side where it stood."""
+        if name not in self._halves:
+            raise ValueError(f"'{name}' is not something that can be cut in two")
+        pos = self.block_pos(name)
+        hx = self._shapes[name].half[0]
+        for sign, half in zip((1.0, -1.0), self._halves[name]):
+            self.set_block(half, (float(pos[0]) + sign * (hx / 2 + 0.008), float(pos[1])))
+            body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, half)
+            self.model.body_gravcomp[body_id] = 0.0  # a real object again
+        self._park(name)
+
+    def is_split(self, name: str) -> bool:
+        if name not in self._halves:
+            return False
+        gone = self.block_pos(name)[2] < 0.0
+        on_table = all(self.block_pos(h)[2] > 0.0 for h in self._halves[name])
+        return gone and on_table
+
+    def press(self, name: str) -> None:
+        """Press a pressable object: it latches down and darkens."""
+        geom = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, f"{name}_geom")
+        self.model.geom_rgba[geom, :3] *= 0.6
+        self._pressed.add(name)
+
+    def is_pressed(self, name: str) -> bool:
+        return name in self._pressed
+
+    def _park(self, name: str) -> None:
+        """Teleport a body far under the table and freeze it, out of the scene."""
+        joint = self.model.joint(int(self.model.body(name).jntadr[0]))
+        adr = int(joint.qposadr[0])
+        self.data.qpos[adr : adr + 7] = [0.0, 0.0, -0.4, 1, 0, 0, 0]
+        self.data.qvel[int(joint.dofadr[0]) : int(joint.dofadr[0]) + 6] = 0
+        self.model.body_gravcomp[self.model.body(name).id] = 1.0
+        mujoco.mj_forward(self.model, self.data)
 
     def surface_top(self, name: str) -> float:
         """Height of the top of an object or container tray."""

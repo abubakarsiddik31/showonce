@@ -63,11 +63,35 @@ def contents_for(program: TaskProgram) -> tuple[set[str], set[str]]:
     return full, targets
 
 
+def _half_profiles(layout: Layout, program: TaskProgram | None) -> dict[str, ObjectProfile]:
+    """A half-profile for every box the program cuts: half the width, everything else the same."""
+    halves: dict[str, ObjectProfile] = {}
+    if not program:
+        return halves
+    for step in program.steps:
+        if step.action != "cut" or step.target in halves:
+            continue
+        parent = layout.profiles.get(step.target)
+        if parent is None:
+            continue
+        for suffix in ("a", "b"):
+            halves[f"{step.target} half {suffix}"] = parent.model_copy(
+                update={"width": parent.width / 2}
+            )
+    return halves
+
+
 def build_world(layout: Layout, program: TaskProgram | None = None) -> SimWorld:
     """Create a world with one object per name and one tray per region."""
     full, pour_targets = contents_for(program) if program else (set(), set())
+    blocks = [
+        block_def(name, layout.profiles.get(name)) for name in layout.objects
+    ] + [
+        block_def(name, profile)
+        for name, profile in _half_profiles(layout, program).items()
+    ]
     world = SimWorld(
-        [block_def(name, layout.profiles.get(name)) for name in layout.objects],
+        blocks,
         [ZoneDef(r.name, r.center, r.size) for r in layout.regions],
         dirty=dirty_surfaces(program) if program else (),
         contents=full,

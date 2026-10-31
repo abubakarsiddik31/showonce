@@ -2,7 +2,7 @@ import pytest
 
 from showonce.objects import ObjectProfile
 from showonce.program import Step, TaskProgram
-from showonce.sim.executor import contents_for
+from showonce.sim.executor import Layout, build_world, contents_for
 from showonce.sim.scene import DEFAULT_ASSET_DIR, SimWorld, ZoneDef, block_def
 from showonce.sim.stack_test import run_stack_test
 
@@ -62,3 +62,30 @@ def test_contents_for_the_program_from_its_pour_and_stir_steps() -> None:
     )
     full, targets = contents_for(program)
     assert full == {"red cup", "bowl"} and targets == {"bowl"}
+
+
+@needs_panda
+def test_pressing_darkens_and_marks_the_object() -> None:
+    lamp = block_def(
+        "orange lamp", ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True)
+    )
+    world = SimWorld([lamp], [])
+    world.set_block("orange lamp", (0.45, 0.0))
+    assert not world.is_pressed("orange lamp")
+    world.press("orange lamp")
+    assert world.is_pressed("orange lamp")
+
+
+@needs_panda
+def test_cutting_swaps_a_box_for_its_two_halves() -> None:
+    profiles = {"white bar": ObjectProfile(shape="box", width=0.12, depth=0.05, height=0.04)}
+    program = TaskProgram(
+        name="t", steps=[Step(object="gray knife", action="cut", target="white bar")]
+    )
+    world = build_world(Layout({"white bar": (0.45, 0.0), "gray knife": (0.45, 0.2)}, [], profiles), program)
+    assert world.halves_of("white bar") == ("white bar half a", "white bar half b")
+    assert not world.is_split("white bar")
+    world.split("white bar")
+    assert world.is_split("white bar")
+    for half in world.halves_of("white bar"):
+        assert world.block_pos(half)[2] > 0.0  # both halves rest on the table
