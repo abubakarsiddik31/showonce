@@ -108,6 +108,10 @@ def fit_profiles(
             continue
         if step.action == "open":
             fitted[step.object] = profile.model_copy(update={"shape": "box", "openable": True})
+        elif step.action == "push":
+            pass  # slid, never grasped: it keeps its true size
+        elif step.action == "press":
+            fitted[step.object] = profile.model_copy(update={"pressable": True})
         else:
             fitted[step.object] = fit_to_gripper(profile)
     return fitted

@@ -46,14 +46,24 @@ def test_only_grasped_objects_are_fitted_to_the_gripper() -> None:
         steps=[
             Step(object="sponge", action="wipe", target="plate"),
             Step(object="chips", action="open", target="chips"),
+            Step(object="book", action="push", target="block"),
+            Step(object="lamp", action="press", target="lamp"),
         ],
     )
     wide_sponge = SPONGE.model_copy(update={"width": 0.14, "depth": 0.08})
     wide_chips = CHIPS.model_copy(update={"shape": "cylinder", "openable": False, "width": 0.14})
-    fitted = fit_profiles({"sponge": wide_sponge, "plate": PLATE, "chips": wide_chips}, program)
+    wide_book = ObjectProfile(shape="box", width=0.2, depth=0.14, height=0.03)
+    lamp = ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03)
+    fitted = fit_profiles(
+        {"sponge": wide_sponge, "plate": PLATE, "chips": wide_chips, "book": wide_book, "lamp": lamp, "block": ObjectProfile()},
+        program,
+    )
     assert fitted["sponge"].width <= 0.068  # picked up, so it must fit
     assert fitted["plate"].width == 0.13  # only wiped, keeps its real size
     assert fitted["chips"].width == 0.14 and fitted["chips"].openable  # opened, not gripped
+    assert fitted["book"].width == 0.2  # pushed, never grasped: true size
+    assert fitted["lamp"].pressable  # a press marks the object pressable
+    assert not fitted["book"].pressable
 
 
 @needs_panda
