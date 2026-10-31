@@ -12,11 +12,16 @@ PROMPT = """\
 This clip is filmed from above. A person moves objects on a table with one hand.
 Objects: {objects}.
 Containers: {containers}.
-List every completed move in the order it happens. For each move give:
-- object: the object that was moved
-- action: "place_in" if it ended inside a container, "stack_on" if it ended on top of another object
-- target: the container or object it ended in or on
-Only list moves that actually happened. Do not invent moves."""
+List every completed step in the order it happens. For each step give:
+- action: one of
+  "place_in": an object ended up inside a container
+  "stack_on": an object ended up on top of another object
+  "wipe": a sponge, cloth or brush was rubbed over a dish, surface or container to clean it
+  "open": a sealed bag, packet or box was torn or opened
+- object: the object that was moved; for "wipe" the cleaning tool; for "open" the thing opened
+- target: for "place_in" the container, for "stack_on" the object underneath, for "wipe" the
+  thing being cleaned, for "open" the same as object
+Only list steps that actually happened. Do not invent steps."""
 
 
 def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, Any]:
@@ -30,7 +35,10 @@ def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, 
                     "type": "object",
                     "properties": {
                         "object": {"type": "string", "enum": list(objects)},
-                        "action": {"type": "string", "enum": ["place_in", "stack_on"]},
+                        "action": {
+                            "type": "string",
+                            "enum": ["place_in", "stack_on", "wipe", "open"],
+                        },
                         "target": {"type": "string", "enum": [*objects, *containers]},
                     },
                     "required": ["object", "action", "target"],
@@ -52,6 +60,7 @@ For each give:
 - width_cm, depth_cm: its footprint seen from above, handles excluded
 - height_cm: how tall it stands
 - handle: true if it has a handle that sticks out sideways (a mug or cup)
+- openable: true if it is a sealed bag, packet or box that gets opened (chips, a snack, cereal)
 Use real-world sizes. A mug is about 8 cm wide and 9 cm tall."""
 
 
@@ -65,8 +74,9 @@ def describe_schema(objects: Sequence[str]) -> dict[str, Any]:
             "depth_cm": {"type": "number"},
             "height_cm": {"type": "number"},
             "handle": {"type": "boolean"},
+            "openable": {"type": "boolean"},
         },
-        "required": ["shape", "width_cm", "depth_cm", "height_cm", "handle"],
+        "required": ["shape", "width_cm", "depth_cm", "height_cm", "handle", "openable"],
         "additionalProperties": False,
     }
     return {

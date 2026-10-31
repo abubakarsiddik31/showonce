@@ -18,12 +18,14 @@ from showonce.sim.controller import PandaController
 from showonce.sim.executor import Layout, Region, StepCheck, build_world, execute, verify
 from showonce.sim.perceive import perceive_blocks
 from showonce.sim.record import SimRecorder
-from showonce.sim.scene import SimWorld, block_def
+from showonce.sim.scene import Shape, SimWorld, block_def
 
 XY = tuple[float, float]
 # Where object centers may go, before keeping their footprint inside the top camera's view.
 X_EDGE, Y_EDGE = (0.34, 0.60), (-0.24, 0.24)
 MIN_SEPARATION = 0.09
+HAND_CLEARANCE = 0.055  # hand body height above the fingertips
+HAND_ROOM = 0.1  # free space a tall neighbour needs so the hand does not hit it
 SEPARATION_GAP = 0.01  # free space between two objects' footprints
 REGION_GAP = 0.03  # free space between an object's footprint and a container
 
@@ -39,13 +41,24 @@ class ReplayResult:
         return all(c.ok for c in self.checks)
 
 
+def _needs_hand_room(a: Shape, b: Shape) -> bool:
+    """Does the wide hand, gripping one of these, reach up to the other's top?
+
+    The hand body sits about 6 cm above the fingertips and is 20 cm wide, so something much
+    taller than what is being gripped is in its way.
+    """
+    return any(
+        tall.half_height * 2 > held.half_height + HAND_CLEARANCE for held, tall in ((a, b), (b, a))
+    )
+
+
 def _place_all(
-    names: list[str], regions: list[Region], rng: random.Random, footprint: dict[str, float]
+    names: list[str], regions: list[Region], rng: random.Random, shapes: dict[str, Shape]
 ) -> dict[str, XY] | None:
     """One greedy attempt at a layout. None if some object has no free spot left."""
     placed: dict[str, XY] = {}
     for name in names:
-        fp = footprint[name]
+        fp = shapes[name].footprint
         for _ in range(200):
             candidate = (
                 rng.uniform(X_EDGE[0] + fp, X_EDGE[1] - fp),
@@ -53,7 +66,13 @@ def _place_all(
             )
             clear_of_objects = all(
                 math.dist(candidate, p)
-                > max(MIN_SEPARATION, fp + footprint[other] + SEPARATION_GAP)
+                > max(
+                    MIN_SEPARATION,
+                    fp + shapes[other].footprint + SEPARATION_GAP,
+                    fp + shapes[other].footprint + HAND_ROOM
+                    if _needs_hand_room(shapes[name], shapes[other])
+                    else 0.0,
+                )
                 for other, p in placed.items()
             )
             margin = fp + REGION_GAP
@@ -79,9 +98,9 @@ def shuffled_layout(
     """Random object positions that do not overlap each other or any container."""
     rng = random.Random(seed)
     profiles = profiles or {}
-    footprint = {name: block_def(name, profiles.get(name)).shape.footprint for name in names}
+    shapes = {name: block_def(name, profiles.get(name)).shape for name in names}
     for _ in range(50):
-        placed = _place_all(names, regions, rng, footprint)
+        placed = _place_all(names, regions, rng, shapes)
         if placed is not None:
             return placed
     raise RuntimeError("Could not find a free layout; the table is too crowded")
@@ -105,7 +124,7 @@ def replay(
     regions = regions_from_scene(scene, calibration)
     truth = shuffled_layout(list(scene.prompts), regions, seed, scene.profiles)
     layout = Layout(truth, regions, scene.profiles)
-    world: SimWorld = build_world(layout)
+    world: SimWorld = build_world(layout, program)
     recorder = SimRecorder(world) if record_to else None
     controller = PandaController(world)
     controller.park()  # out of the top camera's view; none of this is recorded
@@ -114,7 +133,7 @@ def replay(
     if not oracle:
         if client is None:
             raise ValueError("A Meta client is required unless oracle=True")
-        perceived = perceive_blocks(client, world, scene.prompts_for_sim, calibration)
+        perceived = perceive_blocks(client, world, scene.sim_prompt_options, calibration)
         errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
     controller.reset_to_home()  # the video opens on the arm ready, not swinging in from the side
     if recorder:

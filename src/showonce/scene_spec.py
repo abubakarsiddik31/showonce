@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from showonce.objects import ObjectProfile, profile_from_name, sim_prompt
+from showonce.objects import ObjectProfile, profile_from_name, sim_prompt, sim_prompts
 
 
 class ContainerSpec(BaseModel):
@@ -41,6 +41,13 @@ class SceneSpec(BaseModel):
 
     def profile(self, name: str) -> ObjectProfile:
         return self.profiles.get(name) or profile_from_name(name)
+
+    @property
+    def sim_prompt_options(self) -> dict[str, list[str]]:
+        """Phrases to try, best first, for finding each object in the simulator."""
+        if self.sim_prompts:
+            return {n: [p] for n, p in self.sim_prompts.items()}
+        return {n: sim_prompts(n, self.profile(n)) for n in self.prompts}
 
     @property
     def prompts_for_sim(self) -> dict[str, str]:

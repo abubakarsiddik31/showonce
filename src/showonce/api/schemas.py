@@ -9,7 +9,7 @@ from pydantic.alias_generators import to_camel
 
 JobStatus = Literal["queued", "running", "done", "failed"]
 JobKind = Literal["learn", "run"]
-Action = Literal["place_in", "stack_on"]
+Action = Literal["place_in", "stack_on", "wipe", "open"]
 
 
 class ApiModel(BaseModel):

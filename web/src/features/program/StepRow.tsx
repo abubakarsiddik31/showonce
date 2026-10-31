@@ -2,7 +2,7 @@ import { DotsSixVertical, X } from '@phosphor-icons/react'
 import { Reorder, useDragControls } from 'motion/react'
 
 import type { Action } from '../../api/schemas'
-import { objectTone } from '../../lib/format'
+import { objectTone, targetsFor } from '../../lib/format'
 import type { EditableStep } from '../workbench'
 
 interface Props {
@@ -20,11 +20,16 @@ const selectClass =
 
 export function StepRow({ step, index, objects, containers, onEdit, onRemove }: Props) {
   const controls = useDragControls()
-  const targets = step.action === 'place_in' ? containers : objects.filter((o) => o !== step.object)
+  const targets = targetsFor(step.action, step.object, objects, containers)
 
   function changeAction(action: Action) {
-    const pool = action === 'place_in' ? containers : objects.filter((o) => o !== step.object)
+    const pool = targetsFor(action, step.object, objects, containers)
     onEdit({ action, target: pool.includes(step.target) ? step.target : (pool[0] ?? step.target) })
+  }
+
+  function changeObject(object: string) {
+    // opening acts on the object itself, so its target follows it
+    onEdit(step.action === 'open' ? { object, target: object } : { object })
   }
 
   return (
@@ -55,7 +60,7 @@ export function StepRow({ step, index, objects, containers, onEdit, onRemove }: 
           aria-label={`Step ${index + 1} object`}
           className={`${selectClass} col-span-2`}
           value={step.object}
-          onChange={(e) => onEdit({ object: e.target.value })}
+          onChange={(e) => changeObject(e.target.value)}
         >
           {objects.map((o) => (
             <option key={o}>{o}</option>
@@ -69,17 +74,23 @@ export function StepRow({ step, index, objects, containers, onEdit, onRemove }: 
         >
           <option value="place_in">into</option>
           <option value="stack_on">onto</option>
+          <option value="wipe">wipes</option>
+          <option value="open">opens</option>
         </select>
-        <select
-          aria-label={`Step ${index + 1} target`}
-          className={selectClass}
-          value={step.target}
-          onChange={(e) => onEdit({ target: e.target.value })}
-        >
-          {targets.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
+        {step.action === 'open' ? (
+          <span className="px-1 text-sm text-ink-faint">tears it open</span>
+        ) : (
+          <select
+            aria-label={`Step ${index + 1} target`}
+            className={selectClass}
+            value={step.target}
+            onChange={(e) => onEdit({ target: e.target.value })}
+          >
+            {targets.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        )}
       </div>
       <button
         type="button"

@@ -11,9 +11,10 @@ import cv2
 from showonce.geometry import Calibration
 from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
+from showonce.objects import ObjectProfile, fit_to_gripper
 from showonce.perception.pipeline import Observation, observe
 from showonce.perception.profiles import encode_png, first_frame, profile_objects
-from showonce.program import Step, TaskProgram
+from showonce.program import SEMANTIC_ACTIONS, Step, TaskProgram
 from showonce.scene_spec import ContainerSpec, SceneSpec
 from showonce.sim.controller import PandaController
 from showonce.sim.executor import Layout, Region, StepCheck, build_world, execute, verify
@@ -92,6 +93,26 @@ def _read_with_muse_spark(client: MetaClient, video: Path, scene: SceneSpec) -> 
         return None
 
 
+def fit_profiles(
+    profiles: dict[str, ObjectProfile], program: TaskProgram
+) -> dict[str, ObjectProfile]:
+    """Make each object fit what the program does with it.
+
+    Anything the gripper picks up is scaled to fit its fingers; what is only wiped or acted on
+    keeps its real size. A packet that gets opened becomes a sealed box with a lid.
+    """
+    fitted = dict(profiles)
+    for step in program.steps:
+        profile = fitted.get(step.object)
+        if profile is None:
+            continue
+        if step.action == "open":
+            fitted[step.object] = profile.model_copy(update={"shape": "box", "openable": True})
+        else:
+            fitted[step.object] = fit_to_gripper(profile)
+    return fitted
+
+
 def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learned:
     """Watch the clip with SAM 3.1 and Muse Spark, then compile a task program.
 
@@ -101,31 +122,36 @@ def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learn
     width, height = scene.size or frame_size(video)
     calibration = Calibration.for_frame(width, height)
     scene = scene.model_copy(update={"containers": resolve_containers(client, video, scene)})
-    scene = scene.model_copy(
-        update={"profiles": profile_objects(client, first_frame(video), scene)}
-    )
+    profiles = profile_objects(client, first_frame(video), scene)
     obs = observe(client, video, scene.prompts)
     semantic = _read_with_muse_spark(client, video, scene)
     source = "geometry"
-    try:
-        program = learn_program(scene.name, obs.moves, obs.rests, scene.containers)
-        problems = compare_plans(program.steps, semantic) if semantic is not None else []
-    except LearnError:
-        if semantic is None:
-            raise
+    if semantic and any(s.action in SEMANTIC_ACTIONS for s in semantic):
+        # Where things ended up cannot show a wipe or a tear, so the video reading decides.
         program = TaskProgram(name=scene.name, steps=semantic)
-        problems = ["geometry could not explain a move; using Muse Spark's steps"]
+        problems = ["geometry cannot see wiping or opening; using Muse Spark's steps"]
         source = "muse_spark"
+    else:
+        try:
+            program = learn_program(scene.name, obs.moves, obs.rests, scene.containers)
+            problems = compare_plans(program.steps, semantic) if semantic is not None else []
+        except LearnError:
+            if semantic is None:
+                raise
+            program = TaskProgram(name=scene.name, steps=semantic)
+            problems = ["geometry could not explain a move; using Muse Spark's steps"]
+            source = "muse_spark"
+    scene = scene.model_copy(update={"profiles": fit_profiles(profiles, program)})
     objects = {
         name: calibration.to_table(rests[0].center) for name, rests in obs.rests.items() if rests
     }
-    layout = Layout(objects, regions_from_scene(scene, calibration))
+    layout = Layout(objects, regions_from_scene(scene, calibration), scene.profiles)
     return Learned(program, layout, obs, source, semantic, problems, scene)
 
 
 def run_in_sim(program: TaskProgram, layout: Layout, record_to: Path | None = None) -> RunResult:
     """Execute the program on a layout. Optionally record a video of the run."""
-    world = build_world(layout)
+    world = build_world(layout, program)
     recorder = SimRecorder(world) if record_to else None
     controller = PandaController(world, on_step=recorder.capture if recorder else None)
     execute(program, world, controller, layout.regions)

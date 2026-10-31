@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeStep, formatTime, objectTone } from './format'
+import { describeStep, targetsFor, formatTime, objectTone } from './format'
 
 describe('formatTime', () => {
   it('pads minutes and keeps one decimal', () => {
@@ -20,6 +20,22 @@ describe('describeStep', () => {
     expect(describeStep({ object: 'red cup', action: 'stack_on', target: 'blue cup' })).toBe(
       'stack red cup on blue cup',
     )
+  })
+})
+
+describe('wipe and open steps', () => {
+  it('read naturally', () => {
+    expect(describeStep({ object: 'sponge', action: 'wipe', target: 'plate' })).toBe(
+      'wipe plate with sponge',
+    )
+    expect(describeStep({ object: 'chips', action: 'open', target: 'chips' })).toBe('open chips')
+  })
+
+  it('aim each action at what it can act on', () => {
+    const objects = ['sponge', 'plate', 'chips']
+    expect(targetsFor('place_in', 'sponge', objects, ['tray'])).toEqual(['tray'])
+    expect(targetsFor('wipe', 'sponge', objects, ['tray'])).toEqual(['plate', 'chips', 'tray'])
+    expect(targetsFor('open', 'chips', objects, ['tray'])).toEqual(['chips'])
   })
 })
 

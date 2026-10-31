@@ -91,8 +91,11 @@ class PandaController:
     def _current_q(self) -> Vec:
         return np.array(self.world.data.qpos[:7])
 
-    def move_to(self, target: Vec) -> None:
-        """Move the TCP in a straight line to ``target`` (world meters)."""
+    def move_to(self, target: Vec, on_waypoint: Callable[[], None] | None = None) -> None:
+        """Move the TCP in a straight line to ``target`` (world meters).
+
+        ``on_waypoint`` is called after every small step along the way.
+        """
         start = self.world.tcp_pos()
         n = max(1, int(np.ceil(np.linalg.norm(target - start) / self.waypoint_step)))
         q = self._current_q()
@@ -100,6 +103,8 @@ class PandaController:
             q = self.solve_ik(start + (target - start) * (i / n), q)
             self.world.data.ctrl[:7] = q
             self._advance(self.sim_steps)
+            if on_waypoint is not None:
+                on_waypoint()
         self._settle(q)
 
     def _settle(self, q: Vec, max_steps: int = 400) -> None:
@@ -152,6 +157,26 @@ class PandaController:
             model.eq_data[eq, 6:10] = rel_quat
         data.eq_active[eq] = 1 if active else 0
 
+    def grasp(self, body: str, at: Vec) -> None:
+        """Close the gripper on ``body`` with the fingertips at ``at``, then lift clear."""
+        hover = np.array([at[0], at[1], at[2] + HOVER])
+        self.set_gripper(OPEN, steps=60)
+        self.move_to(hover)
+        self.move_to(at.copy())
+        self.set_gripper(CLOSED, steps=150)
+        self._set_weld(body, True)
+        self.move_to(hover)
+
+    def release(self, body: str, at: Vec) -> None:
+        """Lower to ``at``, let go of ``body`` and back off. The gripper's z is the held point."""
+        hover = np.array([at[0], at[1], at[2] + HOVER])
+        self.move_to(hover)
+        self.move_to(at.copy())
+        self._set_weld(body, False)
+        self.set_gripper(OPEN, steps=120)
+        self.move_to(hover)
+        self._advance(150)  # let it settle
+
     def pick_place(
         self,
         name: str,
@@ -165,18 +190,20 @@ class PandaController:
         believed object center; by default the simulator's ground truth is used.
         """
         pick = self.world.block_pos(name) if pick_at is None else pick_at
-        hover_pick = np.array([pick[0], pick[1], pick[2] + HOVER])
-        self.set_gripper(OPEN, steps=60)
-        self.move_to(hover_pick)
-        self.move_to(pick.copy())
-        self.set_gripper(CLOSED, steps=150)
-        self._set_weld(name, True)
-        self.move_to(hover_pick)
+        self.grasp(name, pick)
         place_z = surface_z + self.world.half_height(name) + 0.002
-        hover_place = np.array([target_xy[0], target_xy[1], place_z + HOVER])
-        self.move_to(hover_place)
-        self.move_to(np.array([target_xy[0], target_xy[1], place_z]))
-        self._set_weld(name, False)
-        self.set_gripper(OPEN, steps=120)
-        self.move_to(hover_place)
-        self._advance(150)  # let the block settle
+        self.release(name, np.array([target_xy[0], target_xy[1], place_z]))
+
+    def sweep(
+        self, path: list[tuple[float, float]], z: float, on_waypoint: Callable[[], None]
+    ) -> None:
+        """Drag what is held along ``path`` at height ``z``; ``on_waypoint`` runs along the way."""
+        for x, y in path:
+            self.move_to(np.array([x, y, z]), on_waypoint)
+
+    def pull_off(self, lid: str, tab: Vec, drop_at: Vec) -> None:
+        """Pinch the lid's pull tab, lift the lid off the bag and put it down at ``drop_at``."""
+        self.grasp(lid, tab)
+        hover = np.array([drop_at[0], drop_at[1], tab[2] + HOVER])
+        self.move_to(hover)
+        self.release(lid, drop_at)

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 
 from showonce.geometry import WORK_CENTER_X, Calibration
 from showonce.meta.client import MetaClient
+from showonce.meta.sam import Detection
 from showonce.sim.record import top_view
 from showonce.sim.scene import CAMERA_HEIGHT, SimWorld
 
@@ -32,15 +33,10 @@ def _correct_parallax(table_xy: XY, height: float) -> XY:
     )
 
 
-def _looser(prompt: str) -> str:
-    """Drop the noun: "orange block" becomes "orange object"."""
-    return f"{prompt.split()[0]} object"
-
-
 def perceive_blocks(
     client: MetaClient,
     world: SimWorld,
-    prompts: Mapping[str, str],
+    prompts: Mapping[str, Sequence[str]],
     calibration: Calibration,
     *,
     workers: int = 3,
@@ -53,11 +49,13 @@ def perceive_blocks(
     png = encoded.tobytes()
 
     def locate(name: str) -> tuple[str, XY]:
-        detections = client.segment_image(png, prompts[name])
-        if not detections:  # SAM can miss a low-contrast object; a looser phrase often finds it
-            detections = client.segment_image(png, _looser(prompts[name]))
+        detections: list[Detection] = []
+        for phrase in prompts[name]:  # SAM is picky about wording, so try each in turn
+            detections = client.segment_image(png, phrase)
+            if detections:
+                break
         if not detections:
-            raise NotFoundError(f"SAM found no '{prompts[name]}' for {name}")
+            raise NotFoundError(f"SAM found no '{prompts[name][0]}' for {name}")
         best = max(detections, key=lambda d: d.box.area)
         shape = world.shape(name)
         table_xy = calibration.to_table(best.box.center)

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const actionSchema = z.enum(['place_in', 'stack_on'])
+export const actionSchema = z.enum(['place_in', 'stack_on', 'wipe', 'open'])
 export type Action = z.infer<typeof actionSchema>
 
 export const stepSchema = z.object({

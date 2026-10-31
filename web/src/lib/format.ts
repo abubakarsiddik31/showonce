@@ -9,9 +9,36 @@ export function formatTime(seconds: number): string {
 }
 
 export function describeStep(step: Pick<Step, 'object' | 'action' | 'target'>): string {
-  return step.action === 'place_in'
-    ? `put ${step.object} in ${step.target}`
-    : `stack ${step.object} on ${step.target}`
+  switch (step.action) {
+    case 'place_in':
+      return `put ${step.object} in ${step.target}`
+    case 'stack_on':
+      return `stack ${step.object} on ${step.target}`
+    case 'wipe':
+      return `wipe ${step.target} with ${step.object}`
+    case 'open':
+      return `open ${step.object}`
+  }
+}
+
+/** What an action can be aimed at: a container, an object, a surface, or the object itself. */
+export function targetsFor(
+  action: Step['action'],
+  object: string,
+  objects: string[],
+  containers: string[],
+): string[] {
+  const others = objects.filter((o) => o !== object)
+  switch (action) {
+    case 'place_in':
+      return containers
+    case 'stack_on':
+      return others
+    case 'wipe':
+      return [...others, ...containers]
+    case 'open':
+      return [object]
+  }
 }
 
 const TONES: Record<string, string> = {

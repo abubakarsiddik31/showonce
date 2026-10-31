@@ -81,6 +81,23 @@ Names are only a fallback guess when Muse Spark cannot answer.
 - SAM finds each object in the sim by a phrase built from its profile ("red mug", "orange
   ball"), so two objects with the same colour and shape would be confused.
 
+## Skills
+
+A learned step is one of four actions, each with its own motion in the simulator and a check
+against simulator ground truth (`src/showonce/sim/skills.py`, `executor.py`):
+
+| Action | Meaning | In the sim |
+|---|---|---|
+| `place_in` | put an object in a container | pick, carry, set down inside the tray's rim |
+| `stack_on` | put an object on another | same, onto the top of the one below |
+| `wipe` | clean a dish or surface with a sponge or cloth | pick up the tool, sweep a back-and-forth raster over the whole surface; every stain it passes over is cleared |
+| `open` | tear open a bag, packet or box | pinch the lid's pull tab, lift the lid off and set it aside; the contents show |
+
+Where things ended up cannot show a wipe or a tear, so when Muse Spark reads either one in the
+clip, its reading is used instead of the motion tracking. These are simulator abstractions:
+there is no fluid or cloth physics, and a "tear" is a lid coming off, not a bag ripping.
+Nothing here has been tested on real footage yet.
+
 ## Development
 
 ```bash

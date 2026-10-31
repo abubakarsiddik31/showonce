@@ -19,7 +19,8 @@ RGB = tuple[float, float, float]
 # The sim gripper opens 8 cm, so nothing wider than this can be held.
 MAX_GRASP_WIDTH = 0.068
 MIN_SIZE = 0.02
-MAX_HEIGHT = 0.12
+MAX_HEIGHT = 0.2
+MAX_FOOTPRINT = 0.16  # keeps big things (plates, bags) small enough for the table view
 
 COLORS: dict[str, RGB] = {
     "red": (0.85, 0.2, 0.2),
@@ -46,6 +47,7 @@ class ObjectProfile(BaseModel):
     depth: float = 0.04
     height: float = 0.04
     handle: bool = False  # a handle sticking out sideways, as on a mug
+    openable: bool = False  # a sealed bag, packet or box: a lid you pull off to get inside
     rgb: RGB | None = None  # colour sampled from the clip, used when the name has no colour word
 
 
@@ -88,30 +90,58 @@ def profile_from_name(name: str) -> ObjectProfile:
 
 
 def profile_from_description(description: dict[str, Any], rgb: RGB | None = None) -> ObjectProfile:
-    """Turn Muse Spark's centimetre description into a profile the gripper can actually hold."""
+    """Turn Muse Spark's centimetre description into a profile (true size, before any fitting)."""
     shape: ShapeKind = description["shape"]
-    width = max(MIN_SIZE, float(description["width_cm"]) / 100)
-    depth = max(MIN_SIZE, float(description["depth_cm"]) / 100)
+    width = min(MAX_FOOTPRINT, max(MIN_SIZE, float(description["width_cm"]) / 100))
+    depth = min(MAX_FOOTPRINT, max(MIN_SIZE, float(description["depth_cm"]) / 100))
     height = min(MAX_HEIGHT, max(MIN_SIZE, float(description["height_cm"]) / 100))
     if shape != "box":  # round things are as wide as they are deep
         width = depth = (width + depth) / 2
     if shape == "sphere":
-        width = depth = height = min(MAX_GRASP_WIDTH, (width + depth + height) / 3)
-    scale = min(1.0, MAX_GRASP_WIDTH / width)  # shrink what the gripper cannot open around
+        width = depth = height = (width + depth + height) / 3
     return ObjectProfile(
         shape=shape,
-        width=width * scale,
-        depth=depth * scale,
-        height=max(MIN_SIZE, height * scale),
+        width=width,
+        depth=depth,
+        height=height,
         handle=bool(description.get("handle")) and shape == "cylinder",
+        openable=bool(description.get("openable")) and shape == "box",
         rgb=rgb,
     )
 
 
-def sim_prompt(name: str, profile: ObjectProfile) -> str:
-    """A phrase SAM can use to find the simulated stand-in for this object."""
-    noun = {"box": "block", "cylinder": "cylinder", "sphere": "ball"}[profile.shape]
-    if profile.handle:
-        noun = "mug"
+def fit_to_gripper(profile: ObjectProfile) -> ObjectProfile:
+    """Shrink an object the sim gripper cannot open around, keeping its proportions."""
+    scale = min(1.0, MAX_GRASP_WIDTH / profile.width)
+    if scale == 1.0:
+        return profile
+    return profile.model_copy(
+        update={
+            "width": profile.width * scale,
+            "depth": profile.depth * scale,
+            "height": max(MIN_SIZE, profile.height * scale),
+        }
+    )
+
+
+def sim_prompts(name: str, profile: ObjectProfile) -> list[str]:
+    """Phrases SAM can use to find the simulated stand-in, best first.
+
+    SAM is picky about wording ("red box" works where "red packet" does not), so perception
+    tries each in turn and uses the first that finds something.
+    """
     word = color_in(name) or nearest_color(profile.rgb or COLORS["gray"])
-    return f"{word} {noun}"
+    if profile.handle:
+        phrases = [f"{word} mug", f"{word} cup"]
+    elif profile.openable:
+        phrases = [f"{word} packet", f"{word} box"]
+    elif profile.shape == "cylinder" and profile.height < 0.4 * profile.width:
+        phrases = [f"{word} plate", "round plate", f"{word} round object"]
+    else:
+        noun = {"box": "block", "cylinder": "cylinder", "sphere": "ball"}[profile.shape]
+        phrases = [f"{word} {noun}"]
+    return [*phrases, f"{word} object"]
+
+
+def sim_prompt(name: str, profile: ObjectProfile) -> str:
+    return sim_prompts(name, profile)[0]

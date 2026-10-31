@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,10 @@ BLOCK_HALF = 0.02  # half the edge of a default 4 cm cube
 TRAY_FLOOR = 0.004  # thickness of a container's floor
 RIM_THICKNESS = 0.006
 RIM_HEIGHT = 0.012  # low enough that a mug handle clears it
+LID_THICKNESS = 0.012
+TAB = (0.006, 0.012, 0.0125)  # half extents of the pull tab on a packet's lid; 12 mm to pinch
+DIRT_SPOTS = 14
+DIRT_RADIUS = 0.012
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
 CAMERA_HEIGHT = 0.9
@@ -32,6 +37,7 @@ class Shape:
     kind: ShapeKind
     half: tuple[float, float, float]  # half extents along x, y, z
     handle: float = 0.0  # how far a handle sticks out along +y; the gripper closes along x
+    openable: bool = False  # a sealed packet: its lid is a separate body with a pull tab
 
     @property
     def half_height(self) -> float:
@@ -61,7 +67,7 @@ class Shape:
 def shape_of(profile: ObjectProfile) -> Shape:
     half = (profile.width / 2, profile.depth / 2, profile.height / 2)
     handle = 0.5 * half[0] if profile.handle else 0.0
-    return Shape(profile.shape, half, handle)
+    return Shape(profile.shape, half, handle, profile.openable)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +75,10 @@ class BlockDef:
     name: str
     rgba: tuple[float, float, float, float]
     shape: Shape
+
+
+def lid_name(name: str) -> str:
+    return f"{name}_lid"
 
 
 def block_def(name: str, profile: ObjectProfile | None = None) -> BlockDef:
@@ -95,19 +105,32 @@ class SimWorld:
         blocks: list[BlockDef],
         zones: list[ZoneDef] | None = None,
         asset_dir: Path = DEFAULT_ASSET_DIR,
+        dirty: Collection[str] = (),
     ) -> None:
         panda_xml = asset_dir / "panda.xml"
         if not panda_xml.exists():
             raise FileNotFoundError(f"{panda_xml} not found. Run scripts/fetch_assets.sh first.")
         self.block_names = [b.name for b in blocks]
         self._shapes = {b.name: b.shape for b in blocks}
+        self._zones = {z.name: z for z in zones or []}
         spec = mujoco.MjSpec.from_file(str(panda_xml))
-        self._build_scene(spec, blocks, zones or [])
+        self._build_scene(spec, blocks, zones or [], set(dirty))
         self.model = spec.compile()
         self.data = mujoco.MjData(self.model)
-        # Cancel gravity on the arm so position actuators do not sag; blocks keep gravity.
+        # Cancel gravity on the arm so position actuators do not sag; objects keep gravity.
         free = {
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, n) for n in self.block_names
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, n)
+            for n in [
+                *self.block_names,
+                *(lid_name(b) for b in self.block_names if self._shapes[b].openable),
+            ]
+        }
+        self._dirt = {
+            surface: [
+                mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, f"dirt_{surface}_{i}")
+                for i in range(DIRT_SPOTS)
+            ]
+            for surface in dirty
         }
         for body_id in range(1, self.model.nbody):
             self.model.body_gravcomp[body_id] = 0.0 if body_id in free else 1.0
@@ -116,7 +139,9 @@ class SimWorld:
         self.reset()
 
     @staticmethod
-    def _build_scene(spec: mujoco.MjSpec, blocks: list[BlockDef], zones: list[ZoneDef]) -> None:
+    def _build_scene(
+        spec: mujoco.MjSpec, blocks: list[BlockDef], zones: list[ZoneDef], dirty: set[str]
+    ) -> None:
         world = spec.worldbody
         spec.visual.global_.offwidth = 1920
         spec.visual.global_.offheight = 1080
@@ -141,6 +166,9 @@ class SimWorld:
         assert table is not None
         for zone in zones:
             SimWorld._add_tray(world, zone)
+            if zone.name in dirty:
+                half = (zone.size[0] / 2 - RIM_THICKNESS, zone.size[1] / 2 - RIM_THICKNESS)
+                SimWorld._add_dirt(world, zone.name, (*zone.center, TRAY_FLOOR), half)
         spec.body("hand").add_site(
             name="tcp", pos=[0, 0, TCP_OFFSET], size=[0.004, 0.004, 0.004], rgba=[1, 0, 0, 0.3]
         )
@@ -149,14 +177,22 @@ class SimWorld:
             body = world.add_body(name=block.name, pos=start)
             body.add_freejoint()
             SimWorld._add_object_geoms(body, block)
-            eq = spec.add_equality(
-                name=f"grasp_{block.name}",
-                type=mujoco.mjtEq.mjEQ_WELD,
-                name1="hand",
-                name2=block.name,
-                objtype=mujoco.mjtObj.mjOBJ_BODY,
-            )
-            eq.active = False
+            if block.name in dirty:
+                hx, hy, hz = block.shape.half
+                SimWorld._add_dirt(body, block.name, (0.0, 0.0, hz), (hx, hy))
+            graspable = [block.name]
+            if block.shape.openable:
+                SimWorld._add_lid(world, block, start)
+                graspable.append(lid_name(block.name))
+            for body_name in graspable:
+                eq = spec.add_equality(
+                    name=f"grasp_{body_name}",
+                    type=mujoco.mjtEq.mjEQ_WELD,
+                    name1="hand",
+                    name2=body_name,
+                    objtype=mujoco.mjtObj.mjOBJ_BODY,
+                )
+                eq.active = False
         world.add_camera(
             name=CAMERA_NAME,
             pos=[WORK_CENTER_X, 0.0, CAMERA_HEIGHT],
@@ -199,6 +235,9 @@ class SimWorld:
         hx, hy, hz = shape.half
         # Objects collide with the table (bit 1) and with trays (bit 2).
         physics = {"mass": 0.05, "friction": [1.2, 0.01, 0.0005], "condim": 4, "conaffinity": 3}
+        if shape.openable:
+            SimWorld._add_packet_body(body, block, physics)
+            return
         kind, size = {
             "box": (mujoco.mjtGeom.mjGEOM_BOX, [hx, hy, hz]),
             "cylinder": (mujoco.mjtGeom.mjGEOM_CYLINDER, [hx, hz, 0]),
@@ -209,6 +248,93 @@ class SimWorld:
         body.add_geom(name=f"{block.name}_geom", type=kind, size=size, rgba=rgba, **physics)
         if shape.handle > 0:
             SimWorld._add_handle(body, block)
+
+    @staticmethod
+    def _add_packet_body(body: mujoco.MjsBody, block: BlockDef, physics: dict[str, object]) -> None:
+        """A bag open at the top: floor and four walls, with a few chips inside."""
+        hx, hy, hz = block.shape.half
+        rgba, t = list(block.rgba), 0.002
+        walls = (
+            ("floor", (0, 0, -hz + t), (hx, hy, t)),
+            ("wall_px", (hx - t, 0, 0), (t, hy, hz)),
+            ("wall_nx", (-hx + t, 0, 0), (t, hy, hz)),
+            ("wall_py", (0, hy - t, 0), (hx - 2 * t, t, hz)),
+            ("wall_ny", (0, -hy + t, 0), (hx - 2 * t, t, hz)),
+        )
+        for part, pos, half in walls:
+            body.add_geom(
+                name=f"{block.name}_{part}",
+                type=mujoco.mjtGeom.mjGEOM_BOX,
+                pos=list(pos),
+                size=list(half),
+                rgba=rgba,
+                **physics,
+            )
+        chip = min(0.014, 0.4 * min(hx, hy))
+        for i in range(5):  # visible once the lid is off
+            body.add_geom(
+                name=f"{block.name}_chip{i}",
+                type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+                pos=[0.3 * chip * (i % 2 - 0.5), 0.3 * chip * (i % 3 - 1), hz - 0.012 - 0.004 * i],
+                size=[chip, 0.002, 0],
+                rgba=[0.95, 0.78, 0.25, 1],
+                contype=0,
+                conaffinity=0,
+                mass=0.001,
+            )
+
+    @staticmethod
+    def _add_lid(world: mujoco.MjsBody, block: BlockDef, start: list[float]) -> None:
+        """The lid rests on the bag. A tab on top is what the gripper pinches to pull it off."""
+        hx, hy, hz = block.shape.half
+        body = world.add_body(
+            name=lid_name(block.name),
+            pos=[start[0], start[1], 2 * hz + LID_THICKNESS / 2],
+        )
+        body.add_freejoint()
+        common = {"rgba": list(block.rgba), "mass": 0.01, "friction": [1.5, 0.01, 0.0005]}
+        body.add_geom(
+            name=f"{block.name}_lid",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            size=[hx, hy, LID_THICKNESS / 2],
+            conaffinity=3,
+            **common,
+        )
+        body.add_geom(
+            name=f"{block.name}_tab",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            pos=[0, 0, LID_THICKNESS / 2 + TAB[2]],
+            size=list(TAB),
+            conaffinity=3,
+            **common,
+        )
+
+    @staticmethod
+    def _add_dirt(
+        body: mujoco.MjsBody,
+        surface: str,
+        top: tuple[float, float, float],
+        half: tuple[float, float],
+    ) -> None:
+        """Stains on a surface, spread evenly. ``top`` is the surface center and height."""
+        cx, cy, z = top
+        for i in range(DIRT_SPOTS):
+            radial = math.sqrt((i + 0.5) / DIRT_SPOTS)
+            angle = i * 2.39996  # golden angle spreads the spots without clumping
+            body.add_geom(
+                name=f"dirt_{surface}_{i}",
+                type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+                pos=[
+                    cx + 0.7 * half[0] * radial * math.cos(angle),
+                    cy + 0.7 * half[1] * radial * math.sin(angle),
+                    z + 0.0004,
+                ],
+                size=[DIRT_RADIUS, 0.0004, 0],
+                rgba=[0.3, 0.18, 0.06, 1],
+                contype=0,
+                conaffinity=0,
+                mass=0.0001,
+            )
 
     @staticmethod
     def _add_handle(body: mujoco.MjsBody, block: BlockDef) -> None:
@@ -260,10 +386,42 @@ class SimWorld:
         self.data.qpos[adr : adr + 7] = [xy[0], xy[1], z, 1, 0, 0, 0]
         dof = int(joint.dofadr[0])
         self.data.qvel[dof : dof + 6] = 0
+        if self._shapes[name].openable:  # the lid goes back on top of the bag
+            lid = self.model.joint(int(self.model.body(lid_name(name)).jntadr[0]))
+            lid_adr = int(lid.qposadr[0])
+            z_lid = z + self.half_height(name) + LID_THICKNESS / 2
+            self.data.qpos[lid_adr : lid_adr + 7] = [xy[0], xy[1], z_lid, 1, 0, 0, 0]
+            self.data.qvel[int(lid.dofadr[0]) : int(lid.dofadr[0]) + 6] = 0
         mujoco.mj_forward(self.model, self.data)
 
     def block_pos(self, name: str) -> NDArray[np.float64]:
         return np.array(self.data.xpos[self.model.body(name).id])
+
+    def lid_pos(self, name: str) -> NDArray[np.float64]:
+        return np.array(self.data.xpos[self.model.body(lid_name(name)).id])
+
+    def is_open(self, name: str) -> bool:
+        """The lid has been carried clear of the bag."""
+        offset = self.lid_pos(name)[:2] - self.block_pos(name)[:2]
+        return bool(np.linalg.norm(offset) > self._shapes[name].footprint + 0.02)
+
+    def surface_top(self, name: str) -> float:
+        """Height of the top of an object or container tray."""
+        if name in self._zones:
+            return TRAY_FLOOR
+        return float(self.block_pos(name)[2] + self.half_height(name))
+
+    def scrub(self, surface: str, xy: tuple[float, float], half: tuple[float, float]) -> None:
+        """Wipe away any stains under a rectangle (a sponge) centred at ``xy``."""
+        for geom in self._dirt.get(surface, []):
+            spot = self.data.geom_xpos[geom]
+            if abs(spot[0] - xy[0]) <= half[0] and abs(spot[1] - xy[1]) <= half[1]:
+                self.model.geom_rgba[geom, 3] = 0.0
+
+    def dirt_left(self, surface: str) -> tuple[int, int]:
+        """(stains still showing, stains it started with)."""
+        geoms = self._dirt.get(surface, [])
+        return sum(1 for g in geoms if self.model.geom_rgba[g, 3] > 0), len(geoms)
 
     def tcp_pos(self) -> NDArray[np.float64]:
         return np.array(self.data.site_xpos[self.tcp_site])
