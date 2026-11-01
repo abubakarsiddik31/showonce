@@ -71,3 +71,19 @@ def test_segment_image_sends_data_url_and_caches(tmp_path: Path) -> None:
     assert route.call_count == 1
     content = route.calls[0].request.content.decode()
     assert "data:image/png;base64," in content and "input_image" in content
+
+
+def test_a_crowded_table_of_long_and_tall_things_still_gets_a_layout() -> None:
+    from showonce.objects import ObjectProfile
+
+    profiles = {
+        "knife": ObjectProfile(shape="box", width=0.016, depth=0.11, height=0.02),
+        "bar": ObjectProfile(shape="box", width=0.08, depth=0.11, height=0.02),
+        "cup": ObjectProfile(
+            shape="cylinder", width=0.068, depth=0.068, height=0.0765, handle=True
+        ),
+        "spoon": ObjectProfile(shape="box", width=0.068, depth=0.017, height=0.02),
+    }
+    region = Region("bowl", (0.466, -0.146), (0.165, 0.165))
+    for seed in range(10):
+        shuffled_layout(list(profiles), [region], seed, profiles)

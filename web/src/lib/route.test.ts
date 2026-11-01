@@ -20,7 +20,7 @@ describe('routes', () => {
   })
 
   it('builds links that parse back to the same place', () => {
-    expect(parseRoute(studioHref({ clip: 'chips_open' }))).toMatchObject({ clip: 'chips_open' })
+    expect(parseRoute(studioHref({ clip: 'dishes_wash' }))).toMatchObject({ clip: 'dishes_wash' })
     expect(studioHref()).toBe('#/studio')
     expect(parseRoute(studioHref({ upload: true }))).toMatchObject({ upload: true })
   })

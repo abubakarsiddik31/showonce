@@ -76,13 +76,14 @@ def perceive_blocks(
         rivals = [world.color(n) for n in prompts if n != name]
         best: Detection | None = None
         for phrase in prompts[name]:  # SAM is picky about wording, so try each in turn
-            # A loose phrase can match another object too, so keep only matches that are at
-            # least as much this object's colour as any other object's.
+            # A loose phrase can match another object too, so drop a match that is mostly
+            # some other object's colour. One that is clearly this object's colour stays: a
+            # cup full of cereal is also partly the colour of a gray knife.
             scored = [
-                (_share(image, d, expected), d)
+                (own, d)
                 for d in client.segment_image(png, phrase)
-                if _share(image, d, expected)
-                >= max((_share(image, d, r) for r in rivals), default=0)
+                if (own := _share(image, d, expected)) >= MIN_SHARE
+                or own >= max((_share(image, d, r) for r in rivals), default=0)
             ]
             if scored:
                 share, best = max(scored, key=lambda item: (item[0] >= MIN_SHARE, item[1].box.area))

@@ -128,7 +128,9 @@ def build_clip(client: genai.Client, name: str, spec: dict, clip: dict) -> None:
     print(f"{name}: start frame", flush=True)
     make_image(client, [f"{spec['_style']} {clip['scene']}"], start)
     labels = json.loads((OUT / f"{name}.json").read_text())
-    object_prompts = list(labels["prompts"].values())
+    cut = {step["target"] for step in labels["steps"] if step["action"] == "cut"}
+    # A cut object becomes two pieces, so it cannot be checked as "seen once".
+    object_prompts = [p for n, p in labels["prompts"].items() if n not in cut]
     motion = clip.get("motion", spec["_motion"])  # chores other than put-and-place differ
     previous: str | None = None
     video = work / "turn0.mp4"

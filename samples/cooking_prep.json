@@ -1,0 +1,36 @@
+{
+  "name": "cooking_prep",
+  "notes": "AI-generated footage (anchored steps). Steps hand-labeled from the final video.",
+  "size": [
+    1280,
+    720
+  ],
+  "prompts": {
+    "gray knife": "gray knife",
+    "white bar": "white dough bar",
+    "red cup": "red cup",
+    "yellow spoon": "yellow spoon"
+  },
+  "container_prompts": {
+    "bowl": "white bowl"
+  },
+  "steps": [
+    {
+      "object": "gray knife",
+      "action": "cut",
+      "target": "white bar"
+    },
+    {
+      "object": "red cup",
+      "action": "pour",
+      "target": "bowl"
+    },
+    {
+      "object": "yellow spoon",
+      "action": "stir",
+      "target": "bowl"
+    }
+  ],
+  "title": "Cook: cut, pour, stir",
+  "group": "Chores"
+}

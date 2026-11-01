@@ -20,6 +20,7 @@ RGB = tuple[float, float, float]
 MAX_GRASP_WIDTH = 0.068
 MIN_SIZE = 0.02
 MAX_HEIGHT = 0.2
+MAX_LENGTH = 0.11  # longest side of a box (a knife, a bar), so several fit on the table at once
 MAX_FOOTPRINT = 0.16  # keeps big things (plates, bags) small enough for the table view
 
 COLORS: dict[str, RGB] = {
@@ -117,6 +118,20 @@ def fit_to_gripper(profile: ObjectProfile) -> ObjectProfile:
     """Shrink an object the sim gripper cannot open around, keeping its proportions."""
     scale = min(1.0, MAX_GRASP_WIDTH / profile.width)
     if scale == 1.0:
+        return profile
+    return profile.model_copy(
+        update={
+            "width": profile.width * scale,
+            "depth": profile.depth * scale,
+            "height": max(MIN_SIZE, profile.height * scale),
+        }
+    )
+
+
+def fit_to_table(profile: ObjectProfile) -> ObjectProfile:
+    """Shrink a long box so it leaves room for the other things on the table."""
+    scale = min(1.0, MAX_LENGTH / max(profile.width, profile.depth))
+    if profile.shape != "box" or scale == 1.0:
         return profile
     return profile.model_copy(
         update={

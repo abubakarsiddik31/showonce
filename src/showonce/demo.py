@@ -12,7 +12,7 @@ from showonce.chat import clean_steps, describe_plan, drop_setting_down, underst
 from showonce.geometry import Calibration
 from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
-from showonce.objects import ObjectProfile, fit_to_gripper
+from showonce.objects import ObjectProfile, fit_to_gripper, fit_to_table
 from showonce.perception.pipeline import Observation, observe
 from showonce.perception.profiles import encode_png, first_frame, profile_objects
 from showonce.program import SEMANTIC_ACTIONS, Step, TaskProgram
@@ -118,7 +118,8 @@ def fit_profiles(
     """Make each object fit what the program does with it.
 
     Anything the gripper picks up is scaled to fit its fingers; what is only wiped or acted on
-    keeps its real size. A packet that gets opened becomes a sealed box with a lid.
+    keeps its real size. A packet that gets opened becomes a sealed box with a lid. A knife
+    and the thing it cuts are shortened, so both fit on the table beside everything else.
     """
     fitted = dict(profiles)
     for step in program.steps:
@@ -136,7 +137,13 @@ def fit_profiles(
             fitted[step.object] = profile.model_copy(update={"pressable": True})
         else:
             fitted[step.object] = fit_to_gripper(profile)
-    return fitted
+    cut = {
+        name
+        for step in program.steps
+        if step.action == "cut"
+        for name in (step.object, step.target)
+    }
+    return {name: fit_to_table(p) if name in cut else p for name, p in fitted.items()}
 
 
 def learn_from_video(

@@ -55,7 +55,14 @@ def test_only_grasped_objects_are_fitted_to_the_gripper() -> None:
     wide_book = ObjectProfile(shape="box", width=0.2, depth=0.14, height=0.03)
     lamp = ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03)
     fitted = fit_profiles(
-        {"sponge": wide_sponge, "plate": PLATE, "chips": wide_chips, "book": wide_book, "lamp": lamp, "block": ObjectProfile()},
+        {
+            "sponge": wide_sponge,
+            "plate": PLATE,
+            "chips": wide_chips,
+            "book": wide_book,
+            "lamp": lamp,
+            "block": ObjectProfile(),
+        },
         program,
     )
     assert fitted["sponge"].width <= 0.068  # picked up, so it must fit
@@ -146,7 +153,8 @@ def test_slide_pushes_a_box_without_grasping() -> None:
 def test_stir_mixes_the_bowl() -> None:
     spoon = ObjectProfile(shape="box", width=0.025, depth=0.025, height=0.09)
     layout = Layout(
-        {"yellow spoon": (0.4, -0.1)}, [Region("bowl", (0.5, 0.12), (0.16, 0.16))],
+        {"yellow spoon": (0.4, -0.1)},
+        [Region("bowl", (0.5, 0.12), (0.16, 0.16))],
         {"yellow spoon": spoon},
     )
     program = TaskProgram(
@@ -177,9 +185,13 @@ def test_cut_divides_the_bar_and_refuses_a_ball() -> None:
     knife = ObjectProfile(shape="box", width=0.02, depth=0.04, height=0.02)
     bar = ObjectProfile(shape="box", width=0.12, depth=0.05, height=0.04)
     layout = Layout(
-        {"gray knife": (0.4, -0.15), "white bar": (0.5, 0.1)}, [], {"gray knife": knife, "white bar": bar}
+        {"gray knife": (0.4, -0.15), "white bar": (0.5, 0.1)},
+        [],
+        {"gray knife": knife, "white bar": bar},
     )
-    program = TaskProgram(name="t", steps=[Step(object="gray knife", action="cut", target="white bar")])
+    program = TaskProgram(
+        name="t", steps=[Step(object="gray knife", action="cut", target="white bar")]
+    )
     world = build_world(layout, program)
     execute(program, world, PandaController(world), [])
     assert all(c.ok for c in verify(program, world, []))
@@ -187,18 +199,25 @@ def test_cut_divides_the_bar_and_refuses_a_ball() -> None:
     ball_layout = Layout(
         {"gray knife": (0.4, -0.15), "red ball": (0.5, 0.1)},
         [],
-        {"gray knife": knife, "red ball": ObjectProfile(shape="sphere", width=0.05, depth=0.05, height=0.05)},
+        {
+            "gray knife": knife,
+            "red ball": ObjectProfile(shape="sphere", width=0.05, depth=0.05, height=0.05),
+        },
     )
     bad = TaskProgram(name="t2", steps=[Step(object="gray knife", action="cut", target="red ball")])
     with pytest.raises(ExecutionError, match="round"):
-        execute(bad, build_world(ball_layout, bad), PandaController(build_world(ball_layout, bad)), [])
+        execute(
+            bad, build_world(ball_layout, bad), PandaController(build_world(ball_layout, bad)), []
+        )
 
 
 @needs_panda
 def test_press_latches_the_lamp_down() -> None:
     lamp = ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True)
     layout = Layout({"orange lamp": (0.45, 0.0)}, [], {"orange lamp": lamp})
-    program = TaskProgram(name="t", steps=[Step(object="orange lamp", action="press", target="orange lamp")])
+    program = TaskProgram(
+        name="t", steps=[Step(object="orange lamp", action="press", target="orange lamp")]
+    )
     world = build_world(layout, program)
     execute(program, world, PandaController(world), [])
     assert all(c.ok for c in verify(program, world, []))
@@ -212,3 +231,35 @@ def test_press_refuses_something_without_a_button() -> None:
     world = build_world(layout, bad)
     with pytest.raises(ExecutionError, match="press"):
         execute(bad, world, PandaController(world), [])
+
+
+@needs_panda
+def test_the_cut_away_halves_wait_still_under_the_table() -> None:
+    """Parked halves once fell for ever, which darkened the whole table for the camera."""
+    layout = Layout(
+        {"gray knife": (0.4, -0.15), "white bar": (0.5, 0.1)},
+        [],
+        {
+            "gray knife": ObjectProfile(shape="box", width=0.02, depth=0.04, height=0.02),
+            "white bar": ObjectProfile(shape="box", width=0.12, depth=0.05, height=0.04),
+        },
+    )
+    program = TaskProgram(
+        name="t", steps=[Step(object="gray knife", action="cut", target="white bar")]
+    )
+    world = build_world(layout, program)
+    before = world.block_pos("white bar half a")
+    world.step(500)
+    assert world.block_pos("white bar half a")[2] == pytest.approx(before[2], abs=1e-3)
+
+
+def test_a_knife_and_the_thing_it_cuts_are_shortened_to_fit_the_table() -> None:
+    long_knife = ObjectProfile(shape="box", width=0.025, depth=0.16, height=0.02)
+    long_bar = ObjectProfile(shape="box", width=0.11, depth=0.15, height=0.02)
+    book = ObjectProfile(shape="box", width=0.2, depth=0.14, height=0.03)
+    program = TaskProgram(name="t", steps=[Step(object="knife", action="cut", target="bar")])
+    fitted = fit_profiles({"knife": long_knife, "bar": long_bar, "book": book}, program)
+    assert max(fitted["knife"].width, fitted["knife"].depth) <= 0.11
+    assert max(fitted["bar"].width, fitted["bar"].depth) <= 0.11
+    assert fitted["bar"].width / fitted["bar"].depth == pytest.approx(0.11 / 0.15)
+    assert fitted["book"].width == 0.2  # not part of the cut: keeps its size

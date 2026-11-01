@@ -243,7 +243,11 @@ class SimWorld:
         for block in blocks:
             if f"{block.name} half a" in index:
                 for half in (f"{block.name} half a", f"{block.name} half b"):
-                    spec.body(half).pos = [0.0, 0.0, PARK_Z - 0.05 * index[half]]  # one depth each
+                    body = spec.body(half)
+                    body.pos = [0.0, 0.0, PARK_Z - 0.05 * index[half]]  # one depth each
+                    # Set before compiling: MuJoCo skips gravity compensation altogether if no
+                    # body asks for it at that point, and a parked half would fall for ever.
+                    body.gravcomp = 1.0
         world.add_camera(
             name=CAMERA_NAME,
             pos=[WORK_CENTER_X, 0.0, CAMERA_HEIGHT],

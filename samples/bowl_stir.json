@@ -1,8 +1,0 @@
-{
-  "name": "bowl_stir",
-  "notes": "AI-generated footage (anchored step). Step hand-labeled from the final video.",
-  "size": [1280, 720],
-  "prompts": {"yellow spoon": "yellow spoon"},
-  "container_prompts": {"bowl": "white bowl with flour"},
-  "steps": [{"object": "yellow spoon", "action": "stir", "target": "bowl"}]
-}

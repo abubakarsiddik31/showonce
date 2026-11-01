@@ -29,6 +29,9 @@ HAND_CLEARANCE = 0.055  # hand body height above the fingertips
 HAND_ROOM = 0.1  # free space a tall neighbour needs so the hand does not hit it
 SEPARATION_GAP = 0.01  # free space between two objects' footprints
 REGION_GAP = 0.03  # free space between an object's footprint and a container
+HAND_WIDTH = 0.1  # how far the hand body reaches to each side of the gripper along y
+HAND_THICKNESS = 0.03  # and along x
+GRIP_ROOM = 0.02  # free space each side of an object along x, for the open fingers
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,33 +57,51 @@ def _needs_hand_room(a: Shape, b: Shape) -> bool:
     )
 
 
+def _apart(a: Shape, pa: XY, b: Shape, pb: XY, tight: bool) -> bool:
+    """Are two objects far enough apart for the robot to work on either?
+
+    Normally each is treated as a circle of its footprint. In ``tight`` mode a long thin thing
+    (a knife, a bar) counts as the box it is, so it can sit close beside another along its
+    short side, with finger room along x.
+    """
+    if not tight:
+        if _needs_hand_room(a, b):
+            return math.dist(pa, pb) > a.footprint + b.footprint + HAND_ROOM
+        return math.dist(pa, pb) > max(MIN_SEPARATION, a.footprint + b.footprint + SEPARATION_GAP)
+    gap_x = abs(pa[0] - pb[0]) - (a.half[0] + b.half[0] + a.handle + b.handle)
+    gap_y = abs(pa[1] - pb[1]) - (a.half[1] + b.half[1] + a.handle + b.handle)
+    if _needs_hand_room(a, b):  # the hand is wide along y and thin along x
+        return gap_x > HAND_THICKNESS + SEPARATION_GAP or gap_y > HAND_WIDTH + SEPARATION_GAP
+    return gap_x > 2 * GRIP_ROOM + SEPARATION_GAP or gap_y > SEPARATION_GAP + 2 * GRIP_ROOM
+
+
 def _place_all(
-    names: list[str], regions: list[Region], rng: random.Random, shapes: dict[str, Shape]
+    names: list[str],
+    regions: list[Region],
+    rng: random.Random,
+    shapes: dict[str, Shape],
+    tight: bool = False,
 ) -> dict[str, XY] | None:
     """One greedy attempt at a layout. None if some object has no free spot left."""
     placed: dict[str, XY] = {}
     for name in names:
-        fp = shapes[name].footprint
+        shape = shapes[name]
+        fp = shape.footprint
+        reach_x, reach_y = (
+            (shape.half[0] + shape.handle, shape.half[1] + shape.handle) if tight else (fp, fp)
+        )
         for _ in range(200):
             candidate = (
-                rng.uniform(X_EDGE[0] + fp, X_EDGE[1] - fp),
-                rng.uniform(Y_EDGE[0] + fp, Y_EDGE[1] - fp),
+                rng.uniform(X_EDGE[0] + reach_x, X_EDGE[1] - reach_x),
+                rng.uniform(Y_EDGE[0] + reach_y, Y_EDGE[1] - reach_y),
             )
             clear_of_objects = all(
-                math.dist(candidate, p)
-                > max(
-                    MIN_SEPARATION,
-                    fp + shapes[other].footprint + SEPARATION_GAP,
-                    fp + shapes[other].footprint + HAND_ROOM
-                    if _needs_hand_room(shapes[name], shapes[other])
-                    else 0.0,
-                )
+                _apart(shapes[name], candidate, shapes[other], p, tight)
                 for other, p in placed.items()
             )
-            margin = fp + REGION_GAP
             clear_of_regions = all(
-                abs(candidate[0] - r.center[0]) > r.size[0] / 2 + margin
-                or abs(candidate[1] - r.center[1]) > r.size[1] / 2 + margin
+                abs(candidate[0] - r.center[0]) > r.size[0] / 2 + reach_x + REGION_GAP
+                or abs(candidate[1] - r.center[1]) > r.size[1] / 2 + reach_y + REGION_GAP
                 for r in regions
             )
             if clear_of_objects and clear_of_regions:
@@ -101,10 +122,11 @@ def shuffled_layout(
     rng = random.Random(seed)
     profiles = profiles or {}
     shapes = {name: block_def(name, profiles.get(name)).shape for name in names}
-    for _ in range(50):
-        placed = _place_all(names, regions, rng, shapes)
-        if placed is not None:
-            return placed
+    for tight, tries in ((False, 50), (True, 1000)):  # roomy first: old layouts stay the same
+        for _ in range(tries):
+            placed = _place_all(names, regions, rng, shapes, tight)
+            if placed is not None:
+                return placed
     raise RuntimeError("Could not find a free layout; the table is too crowded")
 
 

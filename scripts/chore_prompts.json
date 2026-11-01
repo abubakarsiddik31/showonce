@@ -53,16 +53,6 @@
     }
    ]
   },
-  "chips_open": {
-   "motion": "Fixed overhead camera that never moves, zooms or cuts. The only person visible is ONE person's RIGHT hand, always the same right hand and never the left: medium-light skin tone, slender fingers, short clean unpolished nails, no rings, no watch, no bracelet, no tattoos, with a plain solid dark gray long sleeve ending at the wrist. It enters from the bottom edge of the frame, does the action at a natural, brisk pace within about 7 seconds, then leaves the frame completely before the 10 seconds are over. Everything not mentioned stays exactly where it is and nothing appears, disappears or changes. No text, no music.",
-   "scene": "A sealed red potato chips bag lies flat on the left half of the table with a straight untorn top edge, and a sealed yellow snack packet lies flat on the right half. Nothing else is on the table.",
-   "steps": [
-    {
-     "edit": "Tear the red chips bag open.",
-     "motion": "The hand grips the top edge of the sealed red chips bag with the fingers of one hand, pulls the top seal apart so the bag tears open along its top edge, then sets the torn strip down beside the bag. The bag stays where it is, now open."
-    }
-   ]
-  },
   "dishes_wash": {
    "motion": "Fixed overhead camera that never moves, zooms or cuts. The only person visible is ONE person's RIGHT hand, always the same right hand and never the left: medium-light skin tone, slender fingers, short clean unpolished nails, no rings, no watch, no bracelet, no tattoos, with a plain solid dark gray long sleeve ending at the wrist. It enters from the bottom edge of the frame, does the action at a natural, brisk pace within about 7 seconds, then leaves the frame completely before the 10 seconds are over. Everything not mentioned stays exactly where it is and nothing appears, disappears or changes. No text, no music.",
    "scene": "A white ceramic plate with brown food stains on it lies on the left half of the table, and a blue plate with brown food stains lies on the right half. A yellow kitchen sponge sits on the bottom middle of the table. Nothing else is on the table.",
@@ -77,24 +67,6 @@
     }
    ]
   },
-  "cup_pour": {
-   "scene": "A red cup full of dry cereal sits on the left half of the table. An empty white bowl sits on the right half of the table.",
-   "steps": [
-    {
-     "edit": "Pour the cereal from the red cup into the white bowl.",
-     "motion": "The hand picks up the red cup, holds it over the white bowl, tips it and pours all the cereal out, then sets the empty cup down beside the bowl."
-    }
-   ]
-  },
-  "bowl_stir": {
-   "scene": "A white bowl filled with white flour sits on the right half of the table. A yellow spoon lies on the left half of the table.",
-   "steps": [
-    {
-     "edit": "Stir the flour in the white bowl with the yellow spoon.",
-     "motion": "The hand picks up the spoon, stirs it round and round through the flour several times, then lays the spoon across the bowl."
-    }
-   ]
-  },
   "book_push_aside": {
    "scene": "A large flat green book lies flat in the center of the table. A small red block sits behind it.",
    "steps": [
@@ -104,21 +76,29 @@
     }
    ]
   },
-  "bar_cut": {
-   "scene": "A white dough bar and a gray knife lie side by side in the center of the table.",
-   "steps": [
-    {
-     "edit": "Cut the white dough bar in two with the gray knife.",
-     "motion": "The hand picks up the knife, draws it straight across the middle of the bar cutting it into two pieces, then lays the knife down beside the halves."
-    }
-   ]
-  },
   "lamp_press": {
    "scene": "An orange push light sits in the center of the table.",
    "steps": [
     {
      "edit": "Press the orange push light so it clicks on.",
      "motion": "The hand presses it straight down once with two fingertips, the light clicks on, and the hand leaves."
+    }
+   ]
+  },
+  "cooking_prep": {
+   "scene": "A white dough bar and a gray kitchen knife lie side by side on the upper left of the table. A red cup full of dry cereal sits on the lower left. A white bowl filled with white flour sits on the right half of the table. A yellow spoon lies on the bottom middle of the table. Nothing else is on the table.",
+   "steps": [
+    {
+     "edit": "Cut the dough bar in two.",
+     "motion": "The hand picks up the gray knife, draws it straight across the middle of the white dough bar cutting it into two pieces, then lays the knife down beside the halves."
+    },
+    {
+     "edit": "Pour the cereal into the bowl.",
+     "motion": "The hand picks up the red cup, holds it over the white bowl, tips it and pours all the cereal into the flour, then sets the empty cup down on the lower left of the table."
+    },
+    {
+     "edit": "Stir the bowl.",
+     "motion": "The hand picks up the yellow spoon, stirs it round and round through the bowl several times, then lays the spoon across the bowl."
     }
    ]
   }
