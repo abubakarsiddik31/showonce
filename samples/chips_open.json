@@ -15,5 +15,7 @@
       "action": "open",
       "target": "red chips"
     }
-  ]
+  ],
+  "title": "Open a bag of chips",
+  "group": "Chores"
 }

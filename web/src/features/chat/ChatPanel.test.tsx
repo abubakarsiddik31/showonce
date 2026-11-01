@@ -2,23 +2,14 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Step } from '../../api/schemas'
 import { ChatPanel } from './ChatPanel'
 import type { ChatMessage } from './conversation'
-
-const step: Step = {
-  object: 'red chips',
-  action: 'open',
-  target: 'red chips',
-  text: 'open red chips',
-  how: "I'll tear the seal off.",
-}
 
 const ask: ChatMessage = {
   id: 'm-1',
   from: 'robot',
-  text: 'This is what I understood. Is that right?',
-  steps: [step],
+  text: 'I saw you tear open the red bag of chips. Did I get it right?',
+  asks: true,
 }
 
 function setup(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
@@ -36,9 +27,10 @@ function setup(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
 }
 
 describe('ChatPanel', () => {
-  it('shows what the robot understood and lets the person confirm it', async () => {
+  it('speaks first, in words, and waits for the person to say it is right', async () => {
     const props = setup()
-    expect(screen.getByText('open red chips')).toBeInTheDocument()
+    expect(screen.getByText(/tear open the red bag of chips/)).toBeInTheDocument()
+    expect(props.onConfirm).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: /yes, that.s right/i }))
     expect(props.onConfirm).toHaveBeenCalledOnce()
   })
@@ -50,12 +42,12 @@ describe('ChatPanel', () => {
     expect(screen.getByLabelText(/tell the robot what to change/i)).toHaveFocus()
   })
 
-  it('sends what is typed and clears the box', async () => {
+  it('lets the person say more instead of answering, and clears the box', async () => {
     const props = setup()
     const box = screen.getByLabelText(/tell the robot what to change/i)
-    await userEvent.type(box, 'also open the yellow packet')
+    await userEvent.type(box, 'I also wanted the yellow packet left alone')
     await userEvent.click(screen.getByRole('button', { name: /send/i }))
-    expect(props.onSend).toHaveBeenCalledWith('also open the yellow packet')
+    expect(props.onSend).toHaveBeenCalledWith('I also wanted the yellow packet left alone')
     expect(box).toHaveValue('')
   })
 
@@ -66,12 +58,24 @@ describe('ChatPanel', () => {
     expect(props.onSend).not.toHaveBeenCalled()
   })
 
-  it('stops asking for confirmation once confirmed, and shows how it will do each step', () => {
+  it('does not offer the yes/no buttons after a message that only invites more talk', () => {
     setup({
-      confirmed: true,
-      messages: [ask, { ...ask, id: 'm-2', text: 'Learned.', showHow: true }],
+      messages: [
+        ask,
+        { id: 'm-2', from: 'person', text: 'Not quite.' },
+        {
+          id: 'm-3',
+          from: 'robot',
+          text: 'Tell me what is different.',
+          asks: false,
+        },
+      ],
     })
     expect(screen.queryByRole('button', { name: /yes, that.s right/i })).toBeNull()
-    expect(screen.getByText("I'll tear the seal off.")).toBeInTheDocument()
+  })
+
+  it('stops asking once confirmed', () => {
+    setup({ confirmed: true })
+    expect(screen.queryByRole('button', { name: /yes, that.s right/i })).toBeNull()
   })
 })

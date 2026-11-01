@@ -1,15 +1,11 @@
-import type { Step } from '../../api/schemas'
-
 export type Speaker = 'person' | 'robot'
 
 export interface ChatMessage {
   id: string
   from: Speaker
   text: string
-  /** The plan as it stood when this was said, shown under the text. */
-  steps?: Step[]
-  /** Also show, for each step, how the robot will do it. */
-  showHow?: boolean
+  /** False for a message that only invites more talk, so no "is that right?" buttons follow it. */
+  asks?: boolean
 }
 
 export interface Conversation {
@@ -38,30 +34,28 @@ export function conversationReducer(state: Conversation, action: ConversationAct
   }
 }
 
-export const greeting = (steps: Step[]): Omit<ChatMessage, 'id'> =>
-  steps.length > 0
-    ? {
-        from: 'robot',
-        text: 'I watched your clip. This is what I understood you did. Is that right?',
-        steps,
-      }
-    : {
-        from: 'robot',
-        text: 'I watched your clip but could not make out a clear task. Tell me what you did, in your own words.',
-      }
-
-export const confirmation = (steps: Step[]): Omit<ChatMessage, 'id'> => ({
+/** The robot speaks first, in its own words, and then waits to hear whether it got it right. */
+export const greeting = (understanding: string): Omit<ChatMessage, 'id'> => ({
   from: 'robot',
-  text: 'Learned. I will not copy your hands: I will do each step my own way, wherever things are on the table.',
-  steps,
-  showHow: true,
+  text:
+    understanding.trim() ||
+    'I watched your clip but could not make out a clear task. Tell me what you did, in your own words.',
+  asks: understanding.trim().length > 0,
 })
+
+export const confirmation: Omit<ChatMessage, 'id'> = {
+  from: 'robot',
+  text: 'Good, I have it. I will not copy your hands: I will do each step my own way, wherever things sit on the table. Here is what I will do.',
+  asks: false,
+}
 
 export const askWhatIsDifferent: Omit<ChatMessage, 'id'> = {
   from: 'robot',
   text: 'Tell me what is different. For example: \u201Calso clean the blue plate\u201D, or \u201Cdo the red one last\u201D.',
+  asks: false,
 }
 
 /** The same plan, said the same way: used to tell whether a reply changed anything. */
-export const planKey = (steps: Step[]): string =>
-  steps.map((s) => `${s.object}|${s.action}|${s.target}`).join(';')
+export const planKey = (
+  steps: Array<{ object: string; action: string; target: string; relation?: string | null }>,
+): string => steps.map((s) => `${s.object}|${s.action}|${s.target}|${s.relation ?? ''}`).join(';')

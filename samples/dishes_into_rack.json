@@ -29,5 +29,7 @@
       "action": "place_in",
       "target": "tray"
     }
-  ]
+  ],
+  "title": "Mugs into a tray",
+  "group": "Put things away"
 }

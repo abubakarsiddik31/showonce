@@ -125,3 +125,24 @@ def talk(
     if proposed and not steps:  # everything the model proposed was nonsense: keep what we had
         return Turn(reply + " (I could not make that into steps, so the plan is unchanged.)", plan)
     return Turn(reply, steps, confirmed)
+
+
+def describe_plan(steps: Sequence[Step]) -> str:
+    """A plain account of a plan, for when Muse Spark cannot put it in its own words."""
+    if not steps:
+        return (
+            "I watched your clip but could not make out a clear task. "
+            "Could you tell me what you did, in your own words?"
+        )
+    said = ", then ".join(str(s) for s in steps)
+    return f"I saw you {said}. Did I get that right?"
+
+
+def understand(client: MetaClient, video_id: str, steps: Sequence[Step]) -> str:
+    """The robot's own account of the clip, falling back to a plain sentence from the steps."""
+    try:
+        text = client.narrate(video_id, list(steps))
+    except (MetaAPIError, ValueError, KeyError) as exc:
+        log.warning("Could not narrate the clip: %s", exc)
+        return describe_plan(steps)
+    return text or describe_plan(steps)

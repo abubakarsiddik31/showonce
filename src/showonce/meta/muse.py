@@ -50,8 +50,16 @@ def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, 
                         "action": {
                             "type": "string",
                             "enum": [
-                                "place_in", "stack_on", "wipe", "open",
-                                "place_near", "push", "pour", "stir", "cut", "press",
+                                "place_in",
+                                "stack_on",
+                                "wipe",
+                                "open",
+                                "place_near",
+                                "push",
+                                "pour",
+                                "stir",
+                                "cut",
+                                "press",
                             ],
                         },
                         # Strict schemas must list every key as required, so "no relation" is null.
@@ -225,29 +233,43 @@ def scene_request(model: str, image_url: str) -> dict[str, Any]:
 
 
 CHAT_PROMPT = """\
-You are teaching a one-armed robot a tabletop task. The person showed it a video, and the robot
-wrote down what it thinks they did, as a plan. You are the robot, talking to the person.
+You are a one-armed robot learning a tabletop task by watching a person's video, and you are talking
+to that person. Speak like a thoughtful colleague: plain, warm and short. Never number things,
+never read out a list of steps, and never mention JSON, schemas or "the plan".
+
+What you can do: put something in a container, stack something on something, put something beside
+something, push something along the table, wipe a dish or surface with a sponge or cloth, open a
+sealed bag or packet, pour a cup into a container, stir a container with a spoon, cut something
+with a knife, and press a button.
 
 Objects on the table: {objects}.
 Containers: {containers}.
-Each plan step is one of:
-- place_in: an object ends up inside a container (target is the container)
-- stack_on: an object ends up on top of another object (target is that object)
-- wipe: a sponge or cloth is rubbed over something to clean it (object is the tool, target is
-  the thing cleaned)
-- open: a sealed bag or packet is torn open (target is the same as object)
 
-The plan as it stands:
+What you currently understand, written as steps for your own reference (do not read them out):
 {plan}
+In the steps, "object" is the thing moved or the tool, and "target" is what it ends up in, on or
+beside, or what is cleaned, stirred or cut. For "open" and "press" the target is the same as the
+object. "relation" is only for putting something beside something and for pushing.
 
 The conversation so far:
 {conversation}
 
-Reply to the person's last message. If they correct or add something, change the plan to match,
-using only the objects and containers above. If they ask a question, answer it and leave the plan
-alone. If they say the plan is right ("yes", "that's right", "go ahead"), set confirmed to true.
-Keep reply to one to three short, plain sentences, say what you changed, and never mention
-JSON or schemas."""
+Now reply to the person's last message:
+- If they correct or add something, change the steps to match (only the objects and containers
+  above), then say back in one or two sentences what you now understand and ask if that is right.
+- If something is unclear, ask ONE short question instead of guessing, and leave the steps alone.
+- If they ask a question, answer it briefly and leave the steps alone.
+- If they approve ("yes", "that's right", "go ahead"), set confirmed to true and say you are ready.
+- If they ask for something you cannot do, say so plainly and leave the steps alone."""
+
+NARRATE_PROMPT = """\
+You are a one-armed robot. You have just watched this short clip of a person doing a task on a
+table. For your own reference, here is what you worked out they did, as steps (do not read them
+out): {plan}
+
+Tell the person what you understood, in your own words, the way you would to a friend: two to four
+short sentences, in the first person ("I saw you ..."). Say what the goal seemed to be. No numbered
+lists and no technical words. End by asking whether you got it right."""
 
 
 def chat_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, Any]:
@@ -311,6 +333,24 @@ def _image_request(
             }
         ],
         "text": {"format": {"type": "json_schema", "name": name, "schema": schema, "strict": True}},
+    }
+
+
+def narrate_request(model: str, file_id: str, plan: Sequence[Step]) -> dict[str, Any]:
+    """Ask for a plain-language account of what the clip showed, grounded in the plan."""
+    text = NARRATE_PROMPT.format(plan="; ".join(str(s) for s in plan) or "none")
+    return {
+        "model": model,
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": text},
+                    {"type": "input_video", "file_id": file_id},
+                ],
+            }
+        ],
     }
 
 

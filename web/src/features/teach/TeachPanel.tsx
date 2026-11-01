@@ -40,8 +40,8 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
   return (
     <Panel
       id="panel-demo"
-      title="The demo"
-      hint="One clip is all it gets. SAM 3.1 follows every object through it, and Muse Spark reads the same video."
+      title="Show it once"
+      hint="One clip is all it gets. It looks at the table, follows every object with SAM 3.1, and Muse Spark watches the same video."
       status={status}
     >
       <VideoStage
@@ -52,8 +52,6 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
         seekTo={seekTo}
       />
 
-      {learn && <Timeline learn={learn} time={time} onSeek={seek} />}
-
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -63,7 +61,7 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
             disabled={busy}
             onClick={onLearn}
           >
-            {learn ? 'Watch again' : 'Learn from this video'}
+            {learn ? 'Watch again' : 'Let the robot watch'}
           </Button>
           {busy && (
             <p className="flex items-center gap-2 text-sm text-ink-dim" aria-live="polite">
@@ -83,11 +81,25 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
         {(startError ?? job?.error) && <ErrorNote message={(startError ?? job?.error) as string} />}
 
         {learn && !busy && (
-          <dl className="grid grid-cols-3 gap-x-6 border-t border-line pt-4">
-            <Fact label="Objects" value={String(new Set(learn.rests.map((r) => r.object)).size)} />
-            <Fact label="Moves seen" value={String(learn.moves.length)} />
-            <Fact label="Read by" value={learn.source === 'geometry' ? 'Motion' : 'Muse Spark'} />
-          </dl>
+          <details className="border-t border-line pt-3 text-sm">
+            <summary className="w-fit cursor-pointer rounded-md py-1 text-xs text-ink-faint select-none hover:text-ink">
+              What it tracked
+            </summary>
+            <div className="mt-3 flex flex-col gap-4">
+              <Timeline learn={learn} time={time} onSeek={seek} />
+              <dl className="grid grid-cols-3 gap-x-6">
+                <Fact
+                  label="Objects"
+                  value={String(new Set(learn.rests.map((r) => r.object)).size)}
+                />
+                <Fact label="Moves seen" value={String(learn.moves.length)} />
+                <Fact
+                  label="Read by"
+                  value={learn.source === 'geometry' ? 'Motion' : 'Muse Spark'}
+                />
+              </dl>
+            </div>
+          </details>
         )}
       </div>
     </Panel>

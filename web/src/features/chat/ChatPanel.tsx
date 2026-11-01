@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
-import { cn, objectTone } from '../../lib/format'
+import { cn } from '../../lib/format'
 import type { ChatMessage } from './conversation'
 
 interface Props {
@@ -26,43 +26,26 @@ function Bubble({ message }: { message: ChatMessage }) {
       className={cn('flex flex-col gap-1', robot ? 'items-start' : 'items-end')}
     >
       <span className="px-1 font-mono text-[10px] tracking-wide text-ink-faint uppercase">
-        {robot ? 'ShowOnce' : 'You'}
+        {robot ? 'The robot' : 'You'}
       </span>
-      <div
+      <p
         className={cn(
-          'max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
+          'max-w-[94%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed',
           robot
             ? 'rounded-tl-md border border-line bg-raised text-ink'
-            : 'rounded-tr-md bg-accent/25 text-ink',
+            : 'rounded-tr-md bg-ink text-canvas',
         )}
       >
-        <p>{message.text}</p>
-        {message.steps && message.steps.length > 0 && (
-          <ol className="mt-2.5 flex flex-col gap-2 border-t border-line pt-2.5">
-            {message.steps.map((step, i) => (
-              <li key={`${i}-${step.text}`} className="flex gap-2 text-xs">
-                <span className="w-3 shrink-0 pt-px font-mono text-ink-faint">{i + 1}</span>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="flex items-center gap-1.5 font-mono text-ink">
-                    <span
-                      className="size-1.5 shrink-0 rounded-full"
-                      style={{ background: objectTone(step.object) }}
-                      aria-hidden
-                    />
-                    {step.text}
-                  </span>
-                  {message.showHow && step.how && <span className="text-ink-dim">{step.how}</span>}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
+        {message.text}
+      </p>
     </motion.li>
   )
 }
 
-/** Talk the plan through: the robot says what it understood and the person puts it right. */
+/**
+ * Talk it through. The robot speaks first, says what it understood, and then waits: nothing
+ * moves until the person says it is right.
+ */
 export function ChatPanel({ messages, confirmed, thinking, onSend, onConfirm, onNotQuite }: Props) {
   const [draft, setDraft] = useState('')
   const inputId = useId()
@@ -70,19 +53,18 @@ export function ChatPanel({ messages, confirmed, thinking, onSend, onConfirm, on
   const inputRef = useRef<HTMLInputElement>(null)
 
   const last = messages[messages.length - 1]
-  const awaitingConfirm =
-    !confirmed && !thinking && last?.from === 'robot' && Boolean(last.steps?.length)
+  const awaitingConfirm = !confirmed && !thinking && last?.from === 'robot' && last.asks !== false
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [messages.length, thinking])
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-sunken/60 p-3">
+    <div className="flex flex-col gap-3">
       <ul
         aria-live="polite"
         aria-label="Conversation"
-        className="flex max-h-[26rem] flex-col gap-3 overflow-y-auto px-1 py-1"
+        className="flex max-h-[24rem] min-h-24 flex-col gap-3 overflow-y-auto pr-1"
       >
         <AnimatePresence initial={false}>
           {messages.map((m) => (
@@ -92,16 +74,16 @@ export function ChatPanel({ messages, confirmed, thinking, onSend, onConfirm, on
         {thinking && (
           <li className="flex flex-col items-start gap-1" aria-label="Thinking">
             <span className="px-1 font-mono text-[10px] tracking-wide text-ink-faint uppercase">
-              ShowOnce
+              The robot
             </span>
-            <div className="skeleton h-9 w-40 rounded-2xl rounded-tl-md" />
+            <div className="skeleton h-11 w-44 rounded-2xl rounded-tl-md" />
           </li>
         )}
         <div ref={endRef} />
       </ul>
 
       {awaitingConfirm && (
-        <div className="flex flex-wrap gap-2 px-1">
+        <div className="flex flex-wrap gap-2">
           <Button variant="primary" icon={<Check size={16} weight="bold" />} onClick={onConfirm}>
             Yes, that&apos;s right
           </Button>
@@ -135,10 +117,10 @@ export function ChatPanel({ messages, confirmed, thinking, onSend, onConfirm, on
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={
-            confirmed ? 'Change something, or ask a question' : 'Correct me, in your own words'
+            confirmed ? 'Change something, or ask a question' : 'Or tell me more, in your own words'
           }
           autoComplete="off"
-          className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-raised px-3 text-sm text-ink placeholder:text-ink-faint hover:border-line-strong"
+          className="h-10 min-w-0 flex-1 rounded-lg border border-line-strong bg-raised px-3 text-sm text-ink placeholder:text-ink-faint hover:border-ink/40"
         />
         <Button
           variant="ghost"
@@ -146,6 +128,7 @@ export function ChatPanel({ messages, confirmed, thinking, onSend, onConfirm, on
           aria-label="Send"
           disabled={!draft.trim() || thinking}
           icon={<PaperPlaneRight size={16} />}
+          className="h-10"
         />
       </form>
     </div>

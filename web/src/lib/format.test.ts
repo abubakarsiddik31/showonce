@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeStep, formatTime, objectTone, plural, targetsFor } from './format'
+import {
+  describeStep,
+  formatTime,
+  groupSamples,
+  howItWillDo,
+  objectTone,
+  plural,
+  targetsFor,
+} from './format'
 
 describe('formatTime', () => {
   it('pads minutes and keeps one decimal', () => {
@@ -96,5 +104,38 @@ describe('plural', () => {
     expect(plural(1, 'step')).toBe('1 step')
     expect(plural(0, 'step')).toBe('0 steps')
     expect(plural(3, 'step')).toBe('3 steps')
+  })
+})
+
+describe('howItWillDo', () => {
+  it('says each step in the robot own way, naming what is on the table', () => {
+    expect(howItWillDo({ object: 'sponge', action: 'wipe', target: 'plate' })).toMatch(
+      /scrub the plate with the sponge, my own way/,
+    )
+    expect(howItWillDo({ object: 'chips', action: 'open', target: 'chips' })).toMatch(/tear it off/)
+    expect(
+      howItWillDo({ object: 'mug', action: 'place_near', target: 'plate', relation: 'left_of' }),
+    ).toMatch(/left of the plate/)
+    expect(howItWillDo({ object: 'book', action: 'push', target: 'tray' })).toMatch(/into the tray/)
+  })
+})
+
+describe('groupSamples', () => {
+  it('groups clips by task kind, in a steady order', () => {
+    const clips = [
+      { group: 'Put things away', title: 'Toys into a box' },
+      { group: 'Chores', title: 'Wash the plates' },
+      { group: 'Put things away', title: 'Fruit into a bowl' },
+    ]
+    expect(groupSamples(clips)).toEqual([
+      ['Chores', [{ group: 'Chores', title: 'Wash the plates' }]],
+      [
+        'Put things away',
+        [
+          { group: 'Put things away', title: 'Fruit into a bowl' },
+          { group: 'Put things away', title: 'Toys into a box' },
+        ],
+      ],
+    ])
   })
 })

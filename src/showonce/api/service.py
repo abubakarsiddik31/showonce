@@ -161,6 +161,8 @@ class Workspace:
                 SampleOut(
                     id=scene_path.stem,
                     name=scene_path.stem.replace("_", " "),
+                    title=scene.title or scene_path.stem.replace("_", " ").capitalize(),
+                    group=scene.group or "More clips",
                     video_url=self._video_url(scene_path.stem),
                     objects=list(scene.prompts),
                     containers=[*scene.container_prompts, *[c.name for c in scene.containers]],
@@ -217,6 +219,7 @@ class Workspace:
             height=height,
             duration_s=_duration(video),
             source=source,
+            understanding=learned.understanding,
             steps=[step_model(s) for s in steps],
             questions=build_questions(steps, learned.semantic, learned.source),
             discrepancies=learned.discrepancies,

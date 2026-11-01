@@ -22,5 +22,7 @@
       "action": "wipe",
       "target": "blue plate"
     }
-  ]
+  ],
+  "title": "Wash the plates",
+  "group": "Chores"
 }

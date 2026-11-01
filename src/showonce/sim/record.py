@@ -23,10 +23,10 @@ class SimRecorder:
         self.renderer = mujoco.Renderer(world.model, height, width)
         self.frames: list[Image] = []
         self.camera = mujoco.MjvCamera()
-        self.camera.lookat[:] = [0.35, 0.0, 0.1]
-        self.camera.distance = 1.9
-        self.camera.azimuth = 140
-        self.camera.elevation = -38
+        self.camera.lookat[:] = [0.38, -0.03, 0.2]
+        self.camera.distance = 1.68
+        self.camera.azimuth = 142
+        self.camera.elevation = -30
 
     def capture(self) -> None:
         self.renderer.update_scene(self.world.data, camera=self.camera)

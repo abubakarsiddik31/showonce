@@ -29,5 +29,7 @@
       "action": "place_in",
       "target": "bowl"
     }
-  ]
+  ],
+  "title": "Fruit into a bowl",
+  "group": "Put things away"
 }

@@ -29,5 +29,7 @@
       "action": "place_in",
       "target": "box"
     }
-  ]
+  ],
+  "title": "Toys into a box",
+  "group": "Put things away"
 }

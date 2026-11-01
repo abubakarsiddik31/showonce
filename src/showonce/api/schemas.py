@@ -22,6 +22,8 @@ class ApiModel(BaseModel):
 class SampleOut(ApiModel):
     id: str
     name: str
+    title: str
+    group: str
     video_url: str
     objects: list[str]
     containers: list[str]
@@ -82,6 +84,7 @@ class LearnResultOut(ApiModel):
     height: int
     duration_s: float
     source: Literal["geometry", "muse_spark"]
+    understanding: str  # what the robot would say it saw, in its own words
     steps: list[StepModel]
     questions: list[QuestionOut]
     discrepancies: list[str]

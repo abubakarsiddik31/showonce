@@ -18,6 +18,7 @@ from showonce.meta.muse import (
     build_request,
     chat_request,
     describe_request,
+    narrate_request,
     parse_steps,
     response_text,
     scene_request,
@@ -156,6 +157,19 @@ class MetaClient:
         text = response_text(resp.json())
         self.cache.set(key, {"text": text})
         return dict(json.loads(text))
+
+    def narrate(self, file_id: str, plan: list[Step]) -> str:
+        """What the robot would say it understood from the clip, in its own plain words."""
+        body = narrate_request(self.settings.plan_model, file_id, plan)
+        key = make_key("narrate", json.dumps(body, sort_keys=True))
+        cached = self.cache.get(key)
+        if cached is not None:
+            return str(cached["text"])
+        resp = self._http.post("/responses", json=body)
+        self._raise_for_status(resp)
+        text = response_text(resp.json()).strip()
+        self.cache.set(key, {"text": text})
+        return text
 
     def describe_scene(self, png: bytes) -> dict[str, Any]:
         """Ask Muse Spark what objects and containers are on the table in this frame."""

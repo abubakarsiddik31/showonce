@@ -8,6 +8,7 @@ from pathlib import Path
 
 import cv2
 
+from showonce.chat import describe_plan, understand
 from showonce.geometry import Calibration
 from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
@@ -33,6 +34,7 @@ class Learned:
     semantic: list[Step] | None = None  # Muse Spark's independent reading, if it answered
     discrepancies: list[str] = field(default_factory=list)
     scene: SceneSpec | None = None  # the scene with containers resolved to pixel rectangles
+    understanding: str = ""  # what the robot would say it saw, in its own words
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +95,15 @@ def _read_with_muse_spark(client: MetaClient, video: Path, scene: SceneSpec) -> 
         return None
 
 
+def _understand(client: MetaClient, video: Path, steps: list[Step]) -> str:
+    try:
+        file_id = client.upload_video(video)
+    except (MetaAPIError, ValueError, KeyError) as exc:
+        log.warning("Could not upload %s to narrate it: %s", video.name, exc)
+        return describe_plan(steps)
+    return understand(client, file_id, steps)
+
+
 def fit_profiles(
     profiles: dict[str, ObjectProfile], program: TaskProgram
 ) -> dict[str, ObjectProfile]:
@@ -150,7 +161,8 @@ def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learn
         name: calibration.to_table(rests[0].center) for name, rests in obs.rests.items() if rests
     }
     layout = Layout(objects, regions_from_scene(scene, calibration), scene.profiles)
-    return Learned(program, layout, obs, source, semantic, problems, scene)
+    understanding = _understand(client, video, program.steps)
+    return Learned(program, layout, obs, source, semantic, problems, scene, understanding)
 
 
 def run_in_sim(program: TaskProgram, layout: Layout, record_to: Path | None = None) -> RunResult:

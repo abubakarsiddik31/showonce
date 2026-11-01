@@ -15,8 +15,8 @@ import {
 const wire = (messages: ChatMessage[]) => messages.map((m) => ({ role: m.from, text: m.text }))
 
 /**
- * The talk-it-through loop: the robot says what it understood, the person corrects it in words,
- * and the plan is revised until they confirm.
+ * The talk-it-through loop. The robot says, in words, what it understood and then waits; the
+ * person answers or corrects it as often as they like; the plan only counts once they confirm.
  */
 export function useConversation(
   sampleId: string | null,
@@ -26,18 +26,18 @@ export function useConversation(
   const [state, dispatch] = useReducer(conversationReducer, emptyConversation)
   const chat = useChat()
 
-  const start = useCallback((learned: Step[]) => {
+  const start = useCallback((understanding: string) => {
     dispatch({ type: 'reset' })
-    dispatch({ type: 'say', message: greeting(learned) })
+    dispatch({ type: 'say', message: greeting(understanding) })
   }, [])
 
   const reset = useCallback(() => dispatch({ type: 'reset' }), [])
 
   const confirm = useCallback(() => {
     dispatch({ type: 'say', message: { from: 'person', text: "Yes, that's right." } })
-    dispatch({ type: 'say', message: confirmation(steps) })
+    dispatch({ type: 'say', message: confirmation })
     dispatch({ type: 'confirmed' })
-  }, [steps])
+  }, [])
 
   const notQuite = useCallback(() => {
     dispatch({ type: 'say', message: { from: 'person', text: 'Not quite.' } })
@@ -53,18 +53,10 @@ export function useConversation(
         { sampleId, messages: wire([...state.messages, said]), steps },
         {
           onSuccess: (reply) => {
-            const changed = planKey(reply.steps) !== planKey(steps)
-            if (changed) onRevise(reply.steps)
-            dispatch({
-              type: 'say',
-              message: {
-                from: 'robot',
-                text: reply.reply,
-                steps: changed ? reply.steps : undefined,
-              },
-            })
+            if (planKey(reply.steps) !== planKey(steps)) onRevise(reply.steps)
+            dispatch({ type: 'say', message: { from: 'robot', text: reply.reply, asks: true } })
             if (reply.confirmed) {
-              dispatch({ type: 'say', message: confirmation(changed ? reply.steps : steps) })
+              dispatch({ type: 'say', message: confirmation })
               dispatch({ type: 'confirmed' })
             }
           },
@@ -73,7 +65,8 @@ export function useConversation(
               type: 'say',
               message: {
                 from: 'robot',
-                text: 'I could not reach my language model just now. You can still edit the steps below.',
+                text: 'I could not reach my language model just now. You can still edit the steps.',
+                asks: false,
               },
             }),
         },

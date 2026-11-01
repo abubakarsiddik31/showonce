@@ -43,6 +43,40 @@ export function describeStep(
   }
 }
 
+/** In the robot's own words, how it will do a step. It does not copy the hand it watched. */
+export function howItWillDo(step: Pick<Step, 'object' | 'action' | 'target' | 'relation'>): string {
+  const { object, target } = step
+  switch (step.action) {
+    case 'place_in':
+      return `I'll pick up the ${object} and set it down inside the ${target}.`
+    case 'stack_on':
+      return `I'll pick up the ${object} and set it on top of the ${target}.`
+    case 'place_near': {
+      const where =
+        step.relation && step.relation !== 'next_to' ? describeRelation(step.relation) : 'beside'
+      return `I'll pick up the ${object} and set it down ${where} the ${target}.`
+    }
+    case 'push': {
+      const where = step.relation
+        ? `${describeRelation(step.relation)} the ${target}`
+        : `into the ${target}`
+      return `I'll put my fingers behind the ${object} and push it ${where}, without lifting it.`
+    }
+    case 'pour':
+      return `I'll hold the ${object} over the ${target} and pour, tipping it until it is empty.`
+    case 'stir':
+      return `I'll stir the ${target} round and round with the ${object} until it is mixed.`
+    case 'cut':
+      return `I'll draw the ${object} across the ${target}, cut it through, and lay the two halves flat.`
+    case 'press':
+      return `I'll press the ${object} straight down, once and firmly.`
+    case 'wipe':
+      return `I'll scrub the ${target} with the ${object}, my own way, until it is clean.`
+    case 'open':
+      return `I'll take hold of the seal on the ${object}, tear it off and lay it aside.`
+  }
+}
+
 /** What an action can be aimed at: a container, an object, a surface, or the object itself. */
 export function targetsFor(
   action: Step['action'],
@@ -98,3 +132,14 @@ export const cn = (...parts: Array<string | false | null | undefined>): string =
 /** plural(1, 'step') -> "1 step", plural(2, 'step') -> "2 steps" */
 export const plural = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? '' : 's'}`
+
+/** Clips grouped by the kind of task they show, groups and clips in a steady order. */
+export function groupSamples<T extends { group: string; title: string }>(
+  samples: T[],
+): Array<[string, T[]]> {
+  const groups = new Map<string, T[]>()
+  for (const s of samples) groups.set(s.group, [...(groups.get(s.group) ?? []), s])
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([group, items]) => [group, [...items].sort((a, b) => a.title.localeCompare(b.title))])
+}

@@ -7,10 +7,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from showonce.api.app import create_app
-from showonce.chat import clean_steps, how_it_will_do, talk
+from showonce.chat import clean_steps, describe_plan, how_it_will_do, talk, understand
 from showonce.config import Settings
 from showonce.meta.client import MetaAPIError
-from showonce.meta.muse import chat_request, chat_schema, scene_schema
+from showonce.meta.muse import chat_request, chat_schema, narrate_request, scene_schema
 from showonce.perception.scene import DiscoveryError, discover_scene
 from showonce.program import Step
 
@@ -224,3 +224,88 @@ def test_how_it_will_do_words_the_new_actions() -> None:
     assert "stir" in how_it_will_do(Step(object="a", action="stir", target="bowl")).lower()
     assert "cut" in how_it_will_do(Step(object="a", action="cut", target="b")).lower()
     assert "press" in how_it_will_do(Step(object="a", action="press", target="a")).lower()
+
+
+# -- saying what it understood ---------------------------------------------------------------
+
+
+def test_the_plain_account_of_a_plan_reads_like_speech_and_asks_if_it_is_right() -> None:
+    said = describe_plan([wipe("white plate"), wipe("blue plate")])
+    assert said.startswith("I saw you wipe white plate with yellow sponge, then wipe blue plate")
+    assert said.endswith("Did I get that right?")
+
+
+def test_with_nothing_understood_it_asks_the_person_to_say_what_they_did() -> None:
+    assert "tell me what you did" in describe_plan([]).lower()
+
+
+class Narrator:
+    def __init__(self, answer: str | Exception) -> None:
+        self.answer = answer
+
+    def narrate(self, file_id: str, plan: list[Step]) -> str:
+        if isinstance(self.answer, Exception):
+            raise self.answer
+        return self.answer
+
+
+def test_it_uses_the_models_own_words_when_it_has_them() -> None:
+    said = understand(Narrator("I watched you clean the plate. Right?"), "file-1", [wipe("tray")])  # type: ignore[arg-type]
+    assert said == "I watched you clean the plate. Right?"
+
+
+@pytest.mark.parametrize("answer", ["", MetaAPIError("down"), ValueError("bad")])
+def test_it_falls_back_to_a_plain_sentence_when_the_model_cannot_narrate(
+    answer: str | Exception,
+) -> None:
+    said = understand(Narrator(answer), "file-1", [wipe("white plate")])  # type: ignore[arg-type]
+    assert said == describe_plan([wipe("white plate")])
+
+
+def test_the_narration_request_carries_the_video_and_the_plan_but_asks_for_plain_words() -> None:
+    body = narrate_request("muse", "file-9", [wipe("white plate")])
+    content = body["input"][0]["content"]
+    assert {"type": "input_video", "file_id": "file-9"} in content
+    prompt = content[0]["text"]
+    assert "wipe white plate with yellow sponge" in prompt and "no numbered" in prompt.lower()
+
+
+def test_the_conversation_prompt_knows_all_ten_actions_and_asks_before_guessing() -> None:
+    prompt = chat_request("muse", OBJECTS, CONTAINERS, [], [("person", "hi")])["input"][0][
+        "content"
+    ][0]["text"]
+    for word in (
+        "put something in",
+        "pour",
+        "stir",
+        "cut",
+        "press",
+        "push",
+        "stack",
+        "wipe",
+        "open",
+    ):
+        assert word in prompt
+    assert "ONE short question" in prompt
+
+
+def test_clips_carry_a_title_and_a_group_for_the_app(tmp_path: Path) -> None:
+    samples = tmp_path / "samples"
+    samples.mkdir()
+    (samples / "wash.mp4").write_bytes(b"")
+    (samples / "wash.json").write_text(
+        '{"name": "wash", "title": "Wash the plates", "group": "Chores", "prompts": {"a": "a"}}'
+    )
+    (samples / "plain.mp4").write_bytes(b"")
+    (samples / "plain.json").write_text('{"name": "plain", "prompts": {"a": "a"}}')
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        api_key="k",
+        samples_dir=samples,
+        runs_dir=tmp_path / "runs",
+        cache_dir=tmp_path / "cache",
+        web_dist=tmp_path / "none",
+    )
+    found = {s["id"]: s for s in TestClient(create_app(settings)).get("/api/samples").json()}
+    assert (found["wash"]["title"], found["wash"]["group"]) == ("Wash the plates", "Chores")
+    assert (found["plain"]["title"], found["plain"]["group"]) == ("Plain", "More clips")

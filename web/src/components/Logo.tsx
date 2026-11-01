@@ -1,0 +1,16 @@
+/** The mark: a gripper and an arm, in the workshop's orange. */
+export function Logo({ className = 'size-8' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#11151a" />
+      <circle cx="11" cy="21" r="4" fill="#ff5a1f" />
+      <path
+        d="M15 21h6a3 3 0 0 0 3-3v-6"
+        fill="none"
+        stroke="#e6eaed"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}

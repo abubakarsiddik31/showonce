@@ -82,13 +82,13 @@ SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also
 
 ## Teach it your own clip
 
-Press **Your clip** in the web app and pick an overhead mp4. You do not name anything:
+Press **Your clip** in the studio and pick an overhead mp4. You do not name anything:
 
 1. **It looks.** Muse Spark reads the clip's first frame and lists what is on the table (objects and containers), and SAM 3.1 tracks each one through the clip.
-2. **It says what it understood**, in plain words, as a plan: “wipe white plate with yellow sponge”, “open red chips”.
-3. **You correct it by talking.** “Only the white plate needs cleaning”, “also put the blue mug in the tray”. Each reply revises the plan and the robot says what it changed. Replies are checked before they are used: a plan can only name objects and containers that are really on the table, so the model cannot invent things. You can also edit the steps directly.
-4. **You confirm, and it tells you how it will do it.** It does not copy the hand: a wipe becomes its own circular scrub, an open becomes its own tear, a put becomes a pick and place, wherever things are on the table. What carries over is the goal, not the motion.
-5. **It runs on a shuffled table** and checks the outcome against the simulator.
+2. **It speaks first, in words.** Muse Spark watches the clip and says what it understood the way a person would ("I saw you wipe off the white plate with the yellow sponge… did I get it right?"). It does not read out a list of steps, and it waits. Nothing moves yet.
+3. **You talk it through.** Answer, correct it, or add detail in your own words, as many times as you like. Each reply restates what it now understands and asks again, or asks one short question if something is unclear. Its answers are checked before they are used: a plan can only name objects and containers that are really on the table, so the model cannot invent things.
+4. **You say it is right, and then it shows its plan** with how it will do each step. It does not copy the hand: a wipe becomes its own circular scrub, an open becomes its own tear, a put becomes a pick and place, wherever things are on the table. What carries over is the goal, not the motion. The steps stay editable in place.
+5. **The robot starts only after you approve**, runs on a shuffled table with a live caption of what it is doing, and checks the outcome.
 
 The same steps work for the sample clips, which come with a scene file for repeatable tests.
 
@@ -166,7 +166,12 @@ uv run showonce ui                         # the web app (see below)
 
 ## Web app
 
-`make backend` (or `uv run showonce ui`) serves the app at http://127.0.0.1:8000. It reads left to right: **The demo** (pick a sample clip or upload your own, and learn the task), **What it understood** (plain steps you can correct in words or edit, with a question if the two readings of the demo disagree), and **On a new table** (the arm runs the steps on a shuffled table, then SAM checks the finished table and the arm fixes a miss once). *Options → Make it slip* drops an object after the run so you can watch that check catch it. The step list lights up in step with the arm's video.
+`make backend` (or `uv run showonce ui`) serves the app at http://127.0.0.1:8000. It is two pages:
+
+- **The landing page** (`#/`) carries the message: what it is, how it works in three steps, what it can do grouped into four things (learn from one clip, check it understood, do the job its own way, check its own work), the demo clips grouped by kind of task, and what has been measured.
+- **The studio** (`#/studio`) is where the work happens, in three stages shown at the top: **Show it once** (pick a clip or upload your own and let the robot watch), **Talk it through** (the conversation above, then the agreed plan), and **Watch it work**. The robot gets the big stage on the right: the cell at rest, locked until you approve, then the arm at work with a caption of what it is doing and how, the plan lighting up in step, and playback at 2× by default. After a run SAM checks the finished table and the arm fixes a miss once. *Options → Make it slip* drops an object after the run so you can watch that check catch it.
+
+`#/studio?clip=dishes_wash` opens a clip directly. Clips carry a `title` and a `group` in their scene file, which is how they are grouped.
 
 The frontend is React, TypeScript and Tailwind in `web/`:
 

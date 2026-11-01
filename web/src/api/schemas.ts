@@ -30,6 +30,8 @@ export type Step = z.infer<typeof stepSchema>
 export const sampleSchema = z.object({
   id: z.string(),
   name: z.string(),
+  title: z.string(),
+  group: z.string(),
   videoUrl: z.string(),
   objects: z.array(z.string()),
   containers: z.array(z.string()),
@@ -52,6 +54,7 @@ export const learnResultSchema = z.object({
   height: z.number(),
   durationS: z.number(),
   source: z.enum(['geometry', 'muse_spark']),
+  understanding: z.string(),
   steps: z.array(stepSchema),
   questions: z.array(questionSchema),
   discrepancies: z.array(z.string()),

@@ -29,6 +29,8 @@ class SceneSpec(BaseModel):
     """Objects are listed as name -> SAM prompt. Names default to being their own prompt."""
 
     name: str = "task"
+    title: str | None = None  # how a clip is named in the app; defaults to the file name
+    group: str | None = None  # what kind of task it belongs to, for grouping clips
     prompts: dict[str, str]
     sim_prompts: dict[str, str] | None = None  # override the prompts used to find sim objects
     profiles: dict[str, ObjectProfile] = Field(default_factory=dict)  # filled in when learning

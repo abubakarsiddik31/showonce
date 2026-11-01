@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Step } from '../../api/schemas'
 import {
   confirmation,
   conversationReducer,
@@ -9,36 +8,26 @@ import {
   planKey,
 } from './conversation'
 
-const wipe: Step = {
-  object: 'yellow sponge',
-  action: 'wipe',
-  target: 'white plate',
-  text: 'wipe white plate with yellow sponge',
-  how: "I'll scrub it my own way.",
-}
-
 describe('conversation', () => {
-  it('greets with the plan it understood and asks if it is right', () => {
-    const message = greeting([wipe])
-    expect(message.from).toBe('robot')
-    expect(message.steps).toEqual([wipe])
-    expect(message.text).toMatch(/right\?$/)
+  it('opens with the robot saying what it understood, in its own words', () => {
+    const message = greeting('I saw you scrub both plates. Did I get it right?')
+    expect(message).toMatchObject({ from: 'robot', asks: true })
+    expect(message.text).toBe('I saw you scrub both plates. Did I get it right?')
   })
 
-  it('asks for a description when it understood nothing', () => {
-    const message = greeting([])
-    expect(message.steps).toBeUndefined()
+  it('asks the person to describe the task when it understood nothing', () => {
+    const message = greeting('   ')
     expect(message.text).toMatch(/Tell me what you did/)
+    expect(message.asks).toBe(false)
   })
 
-  it('shows how it will do each step once confirmed, and says it will not copy the hands', () => {
-    const message = confirmation([wipe])
-    expect(message.showHow).toBe(true)
-    expect(message.text).toMatch(/my own way/)
+  it('says it will not copy the hands once the person approves', () => {
+    expect(confirmation.text).toMatch(/my own way/)
+    expect(confirmation.asks).toBe(false)
   })
 
   it('collects messages with unique ids and remembers confirmation', () => {
-    let state = conversationReducer(emptyConversation, { type: 'say', message: greeting([wipe]) })
+    let state = conversationReducer(emptyConversation, { type: 'say', message: greeting('Hi?') })
     state = conversationReducer(state, {
       type: 'say',
       message: { from: 'person', text: 'also the blue plate' },
@@ -51,7 +40,9 @@ describe('conversation', () => {
   })
 
   it('tells a changed plan from an unchanged one', () => {
-    expect(planKey([wipe])).toBe(planKey([{ ...wipe, text: 'different words', how: '' }]))
+    const wipe = { object: 'sponge', action: 'wipe', target: 'white plate' }
+    expect(planKey([wipe])).toBe(planKey([{ ...wipe }]))
     expect(planKey([wipe])).not.toBe(planKey([{ ...wipe, target: 'blue plate' }]))
+    expect(planKey([wipe])).not.toBe(planKey([{ ...wipe, relation: 'left_of' }]))
   })
 })
