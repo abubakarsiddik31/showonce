@@ -89,7 +89,7 @@ Statuses below were each checked against `src/showonce/` on this branch.
 | FR10 | Execute the program in MuJoCo with a Panda arm, inverse kinematics and a weld-constraint grasp. | P0 | Done (all ten actions; stacking 10 of 10) |
 | FR11 | Replay a stored program on a shuffled layout by re-finding objects with SAM on the sim camera frame. | P0 | Done (`src/showonce/replay.py`) |
 | FR15 | **Ask step:** Muse Spark proposes candidate rules; compile each on the current layout; ask only if the action lists differ. | P0 | Done as shipped: the web Ask step asks only when tracked motion and Muse Spark's reading disagree (`src/showonce/api/questions.py`) |
-| FR16 | **Verify and fix:** SAM checks the final frame against the goal and triggers one correction. | P0 | Partial: every step is verified against simulator ground truth (`src/showonce/sim/executor.py` `verify`); a SAM final-frame check with a corrective retry is not shipped |
+| FR16 | **Verify and fix:** SAM checks the final frame against the goal and triggers one correction. | P0 | Done for `place_in`, `stack_on`, `place_near`, `push` (`src/showonce/verify.py`, `--sam-verify`); pour, stir, cut, press, open and wipe still use simulator state, and the report labels each check. Shown live on one scene, one seed |
 | FR17 | **Why-SAM comparison:** a color-threshold baseline that fails on dim light or similar colors. | P1 | Not started |
 | FR12 | Pass or fail per object on the final layout (merged into FR16). | P1 | Merged |
 | FR14 | Save each run (video, plan, sim recording, score) for the results table. | P1 | Done (runs saved under `runs/<name>/`) |
@@ -101,6 +101,7 @@ Statuses below were each checked against `src/showonce/` on this branch.
 | FR21 | `stir`: swirl a tool through a container's contents until mixed. | P1 | Done on this branch |
 | FR22 | `cut`: one straight pass with a knife; the target becomes two halves. | P1 | Done on this branch |
 | FR23 | `press`: push a button, pump or push-light straight down and latch it. | P1 | Done on this branch |
+| FR24 | **Tidy mode:** no demo; SAM finds the objects, Muse Spark plans a tidy-up in the existing verbs, the arm does it, SAM checks it (`src/showonce/tidy.py`, `showonce tidy`). | P1 | Done; one scene, one seed shown live, not yet evaluated across seeds |
 
 ## System architecture
 

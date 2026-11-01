@@ -21,6 +21,7 @@ from showonce.meta.muse import (
     parse_steps,
     response_text,
     scene_request,
+    tidy_request,
 )
 from showonce.meta.sam import Detection, parse_sam_text
 from showonce.program import Step
@@ -169,6 +170,32 @@ class MetaClient:
         text = response_text(resp.json())
         self.cache.set(key, {"text": text})
         return dict(json.loads(text))
+
+    def plan_tidy(
+        self,
+        png: bytes,
+        goal: str,
+        positions: dict[str, tuple[float, float]],
+        containers: list[str],
+    ) -> list[Step]:
+        """Ask Muse Spark how to tidy the table in this picture, with no demo to learn from."""
+        data_url = "data:image/png;base64," + base64.b64encode(png).decode()
+        body = tidy_request(self.settings.plan_model, data_url, goal, positions, containers)
+        key = make_key(
+            "tidy",
+            hashlib.sha256(png).hexdigest(),
+            goal,
+            json.dumps(positions, sort_keys=True),
+            json.dumps(containers),
+        )
+        cached = self.cache.get(key)
+        if cached is not None:
+            return parse_steps(str(cached["text"]))
+        resp = self._http.post("/responses", json=body)
+        self._raise_for_status(resp)
+        text = response_text(resp.json())
+        self.cache.set(key, {"text": text})
+        return parse_steps(text)
 
     def chat(
         self,

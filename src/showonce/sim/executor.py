@@ -39,6 +39,15 @@ def slot_xy(region: Region, index: int, radius: float) -> XY:
     return (region.center[0] + sx * reach_x, region.center[1] + sy * reach_y)
 
 
+def first_free_slot(region: Region, radius: float, occupied: list[XY]) -> int:
+    """The first slot in ``region`` that no object in ``occupied`` is already resting on."""
+    for index in range(len(_SLOTS)):
+        slot = slot_xy(region, index, radius)
+        if all(math.dist(slot, other) > radius * 1.5 for other in occupied):
+            return index
+    return 0
+
+
 @dataclass(slots=True)
 class Layout:
     """Where everything is on the table: object centers and container regions."""
@@ -128,15 +137,17 @@ def execute(
     regions: list[Region],
     perceived: dict[str, XY] | None = None,
     on_step_done: Callable[[int, str], None] | None = None,
+    slots_used: dict[str, int] | None = None,
 ) -> None:
     """Carry out each step in order.
 
     If ``perceived`` (object centers from vision) is given, the robot acts on those beliefs and
     updates them with where it intends to leave each object. Otherwise it reads the
-    simulator's ground truth.
+    simulator's ground truth. ``slots_used`` says which slot of a container to start filling
+    from, for a repair run into a container that already holds things.
     """
     by_name = {r.name: r for r in regions}
-    placed: dict[str, int] = {r.name: 0 for r in regions}
+    placed: dict[str, int] = {r.name: (slots_used or {}).get(r.name, 0) for r in regions}
     belief: dict[str, np.ndarray] | None = None
     if perceived is not None:
         belief = {n: np.array([x, y, world.half_height(n)]) for n, (x, y) in perceived.items()}

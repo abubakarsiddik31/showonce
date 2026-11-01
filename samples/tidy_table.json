@@ -1,0 +1,14 @@
+{
+  "name": "tidy_table",
+  "notes": "A scene for tidy mode: no demo clip. Objects are scattered by seed; Muse Spark plans the tidy-up.",
+  "size": [1280, 720],
+  "prompts": {
+    "red block": "red block",
+    "green block": "green block",
+    "blue block": "blue block",
+    "red apple": "red apple",
+    "yellow lemon": "yellow lemon"
+  },
+  "container_prompts": {"bowl": "white bowl"},
+  "containers": [{"name": "bowl", "center": [955, 353], "size": [372, 372]}]
+}

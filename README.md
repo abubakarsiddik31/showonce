@@ -57,7 +57,7 @@ flowchart LR
 2. **Muse Spark 1.3** watches the same clip and returns the steps as structured JSON.
 3. The steps compile into a symbolic task program (object names and relations, no pixel positions).
 4. A **MuJoCo** Panda arm executes the program. A stored program can be replayed on a shuffled layout, with SAM re-finding the objects.
-5. Every step is checked against simulator ground truth. The robot reports what it actually did, including failures.
+5. Every step is checked against simulator ground truth. The robot reports what it actually did, including failures. A second check looks at the finished table through SAM, like a camera would, and fixes a miss once (see below).
 
 ShowOnce claims task-level imitation (what moved where, in what order). It does not learn dexterous motor skills.
 
@@ -110,6 +110,30 @@ A learned step is one action, each with its own motion in the simulator and a ch
 | `press` | press a button, pump or push-light | descend straight down, dwell, retract | ✅ shipped |
 
 Where things ended up cannot show a wipe or a tear, and neither can it show a pour, a stir, a cut or a press, so when Muse Spark reads any of those in the clip, its reading is used instead of the motion tracking — Muse Spark's reading is used for all of `SEMANTIC_ACTIONS` (`wipe`, `open`, `pour`, `stir`, `cut`, `press`). These are simulator abstractions: there is no fluid or cloth physics, pour and stir contents are an abstract disc with no fluid physics, and a “tear” is a seal strip coming off a flat bag, not a bag ripping. A push keeps an object's true size because it is never grasped. Nothing here has been tested on real footage yet.
+
+## SAM checks its own work
+
+Simulator ground truth can be called circular, so the robot also looks. After a run it parks the arm, renders the top camera, finds each object with SAM 3.1, and compares what it sees with every step's goal (`src/showonce/verify.py`). A step it sees as missed is run once more, starting from what SAM saw.
+
+```bash
+uv run showonce replay runs/<name>/program.json --scene runs/<name>/scene.json --sam-verify --slip "red block"
+```
+
+`--slip` drops one object on open table after the run, to stage a miss. What a top-down picture can show (`place_in`, `stack_on`, `place_near`, `push`) is judged from SAM. A block with something stacked on it cannot be seen, so it is judged against where it was first seen, or from simulator state if it has since moved. Pour, stir, cut, press, open and wipe are judged from simulator state too, and the report labels each check `SAM:` or `sim:`.
+
+## Tidy mode
+
+No demo clip. Scatter a scene's objects, and the robot looks (SAM 3.1), plans (Muse Spark 1.3, in the same ten-verb language a learned demo compiles to), tidies, then checks itself with SAM:
+
+```bash
+uv run showonce tidy samples/tidy_table.json --seed 1 --out runs/tidy.mp4
+uv run showonce tidy samples/tidy_table.json --seed 1 --slip "yellow lemon"   # stage a miss, watch it fix it
+uv run showonce tidy samples/tidy_table.json --goal "group fruit away from the blocks"
+```
+
+Muse Spark sees the picture plus each object's table position and may only use `place_in`, `stack_on`, `place_near` and `push`. Its plan is cleaned before anything moves (`clean_plan` in `src/showonce/tidy.py`): a step that names an unknown object, moves one twice, moves something with a block stacked on it, or stacks on a ball is dropped, and the dropped steps are printed.
+
+Measured so far (one scene, one seed, live API calls, so a demonstration and not a score): Muse Spark planned four steps, all four verified; with the lemon dropped on open table after the run, SAM saw the miss and the robot put the lemon in the bowl on its second try. The plan changes from run to run. Not yet run: other scenes, other seeds, real photos.
 
 ## How objects are modelled
 

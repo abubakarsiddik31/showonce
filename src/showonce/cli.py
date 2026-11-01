@@ -14,6 +14,7 @@ from showonce import __version__
 from showonce.config import get_settings
 from showonce.meta.client import MetaClient
 from showonce.meta.sam import group_by_object
+from showonce.verify import FixReport
 
 app = typer.Typer(
     help="Teach a simulated robot a tabletop task by filming it once.", no_args_is_help=True
@@ -266,6 +267,13 @@ def replay(
     seed: Annotated[int, typer.Option(help="Seed for the shuffled layout.")] = 1,
     out: Annotated[Path | None, typer.Option(help="Where to save the sim video.")] = None,
     oracle: Annotated[bool, typer.Option(help="Use true sim positions, not SAM.")] = False,
+    sam_verify: Annotated[
+        bool, typer.Option(help="Check the finished table with SAM and fix a miss once.")
+    ] = False,
+    slip: Annotated[
+        str | None,
+        typer.Option(help="Drop this object on open table after the run (a staged miss)."),
+    ] = None,
 ) -> None:
     """Replay a saved program on a shuffled layout, finding objects with SAM 3.1."""
     from showonce.program import TaskProgram
@@ -275,13 +283,82 @@ def replay(
     spec = SceneSpec.load(scene)
     task = TaskProgram.load(program)
     with MetaClient(get_settings()) as client:
-        result = run_replay(client, task, spec, seed, record_to=out, oracle=oracle)
+        result = run_replay(
+            client, task, spec, seed, record_to=out, oracle=oracle, sam_verify=sam_verify, slip=slip
+        )
+    if result.fixes is not None:
+        _print_fixes(result.fixes)
     if result.perception_error_mm:
         console.print(
             "SAM position error (mm): "
             + ", ".join(f"{n} {e:.0f}" for n, e in result.perception_error_mm.items())
         )
     table = Table(title=f"Replay on shuffled layout (seed {seed})")
+    for column in ("step", "ok", "detail"):
+        table.add_column(column)
+    for check in result.checks:
+        table.add_row(check.step, "yes" if check.ok else "NO", check.detail)
+    console.print(table)
+    if not result.success:
+        raise typer.Exit(code=1)
+
+
+def _print_fixes(fixes: FixReport) -> None:
+    """What SAM saw at the end of a run and what the robot did about it."""
+    table = Table(title="SAM's check of the finished table")
+    for column in ("step", "before", "after", "detail"):
+        table.add_column(column)
+    for before, after in zip(fixes.before, fixes.after, strict=True):
+        table.add_row(
+            before.step,
+            "ok" if before.ok else "MISSED",
+            "ok" if after.ok else "MISSED",
+            after.detail,
+        )
+    console.print(table)
+    if fixes.retried:
+        verdict = "fixed" if fixes.fixed else f"not fixed ({fixes.error or 'still off'})"
+        console.print(f"Ran again: {', '.join(fixes.retried)} -> {verdict}")
+
+
+@app.command()
+def tidy(
+    scene: Annotated[
+        Path,
+        typer.Argument(
+            exists=True, dir_okay=False, help="Scene json, e.g. samples/tidy_table.json"
+        ),
+    ],
+    seed: Annotated[int, typer.Option(help="Seed for the messy layout.")] = 1,
+    goal: Annotated[str, typer.Option(help="What tidy means.")] = "",
+    out: Annotated[Path | None, typer.Option(help="Where to save the sim video.")] = None,
+    oracle: Annotated[bool, typer.Option(help="Use true sim positions, not SAM.")] = False,
+    slip: Annotated[
+        str | None,
+        typer.Option(help="Drop this object on open table after the run (a staged miss)."),
+    ] = None,
+) -> None:
+    """Scatter a scene's objects, then see, plan and tidy them with no demo to learn from."""
+    from showonce.scene_spec import SceneSpec
+    from showonce.tidy import DEFAULT_GOAL, run_tidy
+
+    spec = SceneSpec.load(scene)
+    with MetaClient(get_settings()) as client:
+        result = run_tidy(
+            client,
+            spec,
+            seed,
+            goal=goal or DEFAULT_GOAL,
+            record_to=out,
+            oracle=oracle,
+            slip=slip,
+        )
+    console.print("Plan: " + "; ".join(str(s) for s in result.program.steps))
+    for note in result.dropped:
+        console.print(f"[yellow]Skipped:[/yellow] {note}")
+    if result.fixes is not None:
+        _print_fixes(result.fixes)
+    table = Table(title=f"Tidy {spec.name} (seed {seed})")
     for column in ("step", "ok", "detail"):
         table.add_column(column)
     for check in result.checks:

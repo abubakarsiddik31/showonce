@@ -19,6 +19,7 @@ from showonce.sim.executor import Layout, Region, StepCheck, build_world, execut
 from showonce.sim.perceive import perceive_blocks
 from showonce.sim.record import SimRecorder
 from showonce.sim.scene import Shape, SimWorld, block_def
+from showonce.verify import FixReport, fix_misses
 
 XY = tuple[float, float]
 # Where object centers may go, before keeping their footprint inside the top camera's view.
@@ -35,6 +36,7 @@ class ReplayResult:
     checks: list[StepCheck]
     perception_error_mm: dict[str, float]
     step_frames: list[int] = field(default_factory=list)  # recorded frame count after each step
+    fixes: FixReport | None = None  # what SAM saw at the end, and the one corrective try
 
     @property
     def success(self) -> bool:
@@ -106,6 +108,33 @@ def shuffled_layout(
     raise RuntimeError("Could not find a free layout; the table is too crowded")
 
 
+def slip_spot(world: SimWorld, regions: list[Region], name: str, seed: int) -> XY:
+    """A free spot on open table to drop ``name``, as if it had slipped from the gripper."""
+    others = [n for n in world.block_names if n != name]
+    shapes = {n: world.shape(n) for n in [name, *others]}
+    rng = random.Random(seed)
+    fp = shapes[name].footprint
+    for _ in range(500):
+        candidate = (
+            rng.uniform(X_EDGE[0] + fp, X_EDGE[1] - fp),
+            rng.uniform(Y_EDGE[0] + fp, Y_EDGE[1] - fp),
+        )
+        clear_of_objects = all(
+            math.dist(candidate, (float(p[0]), float(p[1]))) > fp + shapes[n].footprint + 0.03
+            for n in others
+            for p in [world.block_pos(n)]
+            if p[2] > 0
+        )
+        clear_of_regions = all(
+            abs(candidate[0] - r.center[0]) > r.size[0] / 2 + fp + REGION_GAP
+            or abs(candidate[1] - r.center[1]) > r.size[1] / 2 + fp + REGION_GAP
+            for r in regions
+        )
+        if clear_of_objects and clear_of_regions:
+            return candidate
+    raise RuntimeError("No free spot to drop the object")
+
+
 def replay(
     client: MetaClient | None,
     program: TaskProgram,
@@ -115,10 +144,15 @@ def replay(
     record_to: Path | None = None,
     oracle: bool = False,
     on_step_done: Callable[[int, str], None] | None = None,
+    sam_verify: bool = False,
+    slip: str | None = None,
 ) -> ReplayResult:
     """Shuffle the table, find the objects, and run the program.
 
     With ``oracle`` the robot reads true positions from the simulator instead of using SAM.
+    With ``sam_verify`` it finally parks the arm, looks at the table with SAM and runs once more
+    any step that picture shows as missed. ``slip`` names an object to drop on open table after
+    the run, to stage a miss for it to catch.
     """
     calibration = Calibration.for_frame(*(scene.size or (1280, 720)))
     regions = regions_from_scene(scene, calibration)
@@ -147,6 +181,27 @@ def replay(
             on_step_done(index, text)
 
     execute(program, world, controller, regions, perceived, step_done)
+    if slip is not None:
+        world.set_block(slip, slip_spot(world, regions, slip, seed))
+        if recorder:
+            recorder.capture()
+    fixes: FixReport | None = None
+    if sam_verify:
+        if client is None:
+            raise ValueError("A Meta client is required for sam_verify")
+        sam_client = client
+
+        def look(names: list[str]) -> dict[str, XY]:
+            return perceive_blocks(
+                sam_client,
+                world,
+                {n: scene.sim_prompt_options[n] for n in names},
+                calibration,
+            )
+
+        fixes = fix_misses(
+            program, world, controller, regions, look, list(truth), on_step_done=None
+        )
     if recorder and record_to:
         recorder.save(record_to)
-    return ReplayResult(verify(program, world, regions), errors, step_frames)
+    return ReplayResult(verify(program, world, regions), errors, step_frames, fixes)
