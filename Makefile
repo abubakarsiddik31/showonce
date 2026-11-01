@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup assets ui web-dev web-build demo replay tidy eval-demo eval-replay sim-test test lint typecheck check
+.PHONY: help setup assets backend ui web-dev web-build demo replay tidy eval-demo eval-replay sim-test test lint typecheck check
 
 SAMPLE ?= toys_into_bin
 SEED   ?= 3
@@ -15,10 +15,13 @@ setup: ## Install Python and web dependencies
 assets: ## Download the Panda model
 	./scripts/fetch_assets.sh
 
+backend: ## Run only the API on :8000 (pair with `make web-dev`)
+	uv run showonce ui
+
 ui: web-build ## Build the frontend and serve the app on :8000
 	uv run showonce ui
 
-web-dev: ## Vite dev server on :5173 (run `make ui` API separately)
+web-dev: ## Vite dev server on :5173 (run `make backend` separately)
 	cd web && pnpm dev
 
 web-build: ## Build the frontend into web/dist
