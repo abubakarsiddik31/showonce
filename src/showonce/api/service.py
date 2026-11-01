@@ -16,6 +16,7 @@ from showonce.api.schemas import (
     ChatReply,
     CheckOut,
     ContainerOut,
+    FixesOut,
     LearnResultOut,
     MoveOut,
     RestOut,
@@ -52,10 +53,32 @@ def _duration(video: Path) -> float:
     return round(frames / fps, 2) if fps > 0 else 0.0
 
 
+def slip_candidate(program: TaskProgram) -> str | None:
+    """The object to drop for a staged miss: one placed last that nothing rests on."""
+    covered = {s.target for s in program.steps if s.action == "stack_on"}
+    for step in reversed(program.steps):
+        if step.action in ("place_in", "place_near") and step.object not in covered:
+            return step.object
+    return None
+
+
+def _checks(checks: Any) -> list[dict[str, Any]]:
+    return [{"step": c.step, "ok": c.ok, "detail": c.detail} for c in checks]
+
+
 def run_worker(
-    scene_json: str, steps: list[dict[str, Any]], seed: int, oracle: bool, out: str
+    scene_json: str,
+    steps: list[dict[str, Any]],
+    seed: int,
+    oracle: bool,
+    out: str,
+    slip: bool = False,
 ) -> dict[str, Any]:
-    """Replay on a shuffled table in a child process (the renderer needs a main thread)."""
+    """Replay on a shuffled table in a child process (the renderer needs a main thread).
+
+    Unless ``oracle`` is set the robot also looks at the finished table with SAM and fixes a
+    miss once; ``slip`` stages one.
+    """
     from showonce.config import get_settings
     from showonce.replay import replay
 
@@ -66,11 +89,29 @@ def run_worker(
         result = replay(None, program, scene, seed, record_to=out_path, oracle=True)
     else:
         with MetaClient(get_settings()) as client:
-            result = replay(client, program, scene, seed, record_to=out_path)
+            result = replay(
+                client,
+                program,
+                scene,
+                seed,
+                record_to=out_path,
+                sam_verify=True,
+                slip=slip_candidate(program) if slip else None,
+            )
+    fixes = result.fixes
     return {
-        "checks": [{"step": c.step, "ok": c.ok, "detail": c.detail} for c in result.checks],
+        "checks": _checks(result.checks),
         "errors": result.perception_error_mm,
         "frames": result.step_frames,
+        "fixes": None
+        if fixes is None
+        else {
+            "before": _checks(fixes.before),
+            "after": _checks(fixes.after),
+            "retried": fixes.retried,
+            "missed": fixes.missed,
+            "fixed": fixes.fixed,
+        },
     }
 
 
@@ -239,7 +280,9 @@ class Workspace:
 
     # -- run -----------------------------------------------------------------------------
 
-    def start_run(self, sample_id: str, steps: list[StepModel], seed: int, oracle: bool) -> Job:
+    def start_run(
+        self, sample_id: str, steps: list[StepModel], seed: int, oracle: bool, slip: bool = False
+    ) -> Job:
         scene_path = self._resolved_scene_path(sample_id)
         if not scene_path.is_file():
             raise NotFoundError("Learn the task from the video before running it")
@@ -259,7 +302,7 @@ class Workspace:
                     max_workers=1, mp_context=multiprocessing.get_context("spawn")
                 )
             data = self._procs.submit(
-                run_worker, scene_json, payload, seed, oracle, str(out)
+                run_worker, scene_json, payload, seed, oracle, str(out), slip
             ).result()
             checks = [CheckOut(**c) for c in data["checks"]]
             return RunResultOut(
@@ -269,6 +312,15 @@ class Workspace:
                 checks=checks,
                 step_times_s=[round(f / SIM_FPS, 2) for f in data["frames"]],
                 perception_error_mm={k: round(v, 1) for k, v in data["errors"].items()},
+                fixes=FixesOut(
+                    before=[CheckOut(**c) for c in data["fixes"]["before"]],
+                    after=[CheckOut(**c) for c in data["fixes"]["after"]],
+                    retried=data["fixes"]["retried"],
+                    missed=data["fixes"]["missed"],
+                    fixed=data["fixes"]["fixed"],
+                )
+                if data["fixes"]
+                else None,
             )
 
         return self.jobs.submit("run", self._threads, work)

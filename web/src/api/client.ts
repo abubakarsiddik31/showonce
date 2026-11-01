@@ -48,6 +48,6 @@ export const api = {
     messages: Array<{ role: 'person' | 'robot'; text: string }>
     steps: Step[]
   }) => request('/api/chat', chatReplySchema, json(body)),
-  run: (body: { sampleId: string; steps: Step[]; seed: number; oracle: boolean }) =>
+  run: (body: { sampleId: string; steps: Step[]; seed: number; oracle: boolean; slip: boolean }) =>
     request('/api/run', jobRefSchema, json(body)).then((r) => r.jobId),
 }

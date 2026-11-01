@@ -76,3 +76,19 @@ def test_step_model_accepts_the_new_actions_and_relation() -> None:
     assert step.relation == "left_of"
     data = StepModel(object="c", action="press", target="c").model_dump(by_alias=True)
     assert data["action"] == "press" and data.get("relation") is None
+
+
+def test_a_staged_slip_drops_what_was_placed_last_and_not_what_is_covered() -> None:
+    from showonce.api.service import slip_candidate
+    from showonce.program import Step, TaskProgram
+
+    program = TaskProgram(
+        name="t",
+        steps=[
+            Step(object="a", action="place_in", target="box"),
+            Step(object="b", action="stack_on", target="a"),
+            Step(object="c", action="place_in", target="box"),
+        ],
+    )
+    assert slip_candidate(program) == "c"
+    assert slip_candidate(TaskProgram(name="t", steps=program.steps[1:2])) is None

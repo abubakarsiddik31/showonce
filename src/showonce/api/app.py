@@ -86,7 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/run")
     def run(body: RunRequest) -> JobRef:
         try:
-            job = workspace.start_run(body.sample_id, body.steps, body.seed, body.oracle)
+            job = workspace.start_run(body.sample_id, body.steps, body.seed, body.oracle, body.slip)
         except NotFoundError as exc:
             raise HTTPException(409, str(exc)) from exc
         return JobRef(job_id=job.id)

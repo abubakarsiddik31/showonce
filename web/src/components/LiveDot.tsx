@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 
 /** A breathing status dot. Isolated and memoised so the loop never re-renders its parent. */
 export const LiveDot = memo(function LiveDot({ tone = 'accent' }: { tone?: 'accent' | 'warn' }) {
-  const color = tone === 'accent' ? 'bg-accent' : 'bg-amber-400'
+  const color = tone === 'accent' ? 'bg-accent' : 'bg-ink-faint'
   return (
     <span className="relative flex size-2" aria-hidden>
       <motion.span

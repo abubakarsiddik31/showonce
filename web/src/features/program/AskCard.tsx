@@ -20,9 +20,9 @@ export function AskCard({ question, chosen, onChoose }: Props) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-      className="flex flex-col gap-4 rounded-2xl border border-line-strong bg-raised p-5 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.6)]"
+      className="flex flex-col gap-4 rounded-2xl border border-line-strong bg-raised p-5 shadow-[0_20px_40px_-24px_rgba(17,21,26,0.35)]"
     >
-      <div className="flex items-center gap-2 text-xs font-medium text-accent">
+      <div className="flex items-center gap-2 text-xs font-medium text-ink">
         {answered ? <QuestionIcon size={16} /> : <LiveDot />}
         {answered ? 'Answered' : 'Needs your call'}
       </div>
@@ -41,8 +41,8 @@ export function AskCard({ question, chosen, onChoose }: Props) {
                 'rounded-xl border p-3 text-left transition-[transform,border-color,background-color] duration-200',
                 'active:scale-[0.99]',
                 selected
-                  ? 'border-accent/60 bg-accent/5'
-                  : 'border-line hover:border-line-strong hover:bg-white/[0.03]',
+                  ? 'border-accent bg-accent/10'
+                  : 'border-line hover:border-line-strong hover:bg-ink/[0.03]',
               )}
             >
               <span className="text-sm font-medium">{option.label}</span>

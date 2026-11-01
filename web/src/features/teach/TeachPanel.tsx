@@ -5,7 +5,7 @@ import type { Job, Sample } from '../../api/schemas'
 import { Button } from '../../components/Button'
 import { ErrorNote } from '../../components/ErrorNote'
 import { LiveDot } from '../../components/LiveDot'
-import { Section } from '../../components/Section'
+import { Panel, StatusPill } from '../../components/Panel'
 import { Skeleton } from '../../components/Skeleton'
 import { Timeline } from './Timeline'
 import { VideoStage } from './VideoStage'
@@ -29,11 +29,20 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
     setSeekTo(s)
   }, [])
 
+  const status = busy ? (
+    <StatusPill tone="live">Reading</StatusPill>
+  ) : learn ? (
+    <StatusPill tone="done">Learned</StatusPill>
+  ) : (
+    <StatusPill tone="idle">Ready</StatusPill>
+  )
+
   return (
-    <Section
-      index="01"
-      title="Teach"
-      hint="Show the task once. SAM 3.1 follows each object through the clip and Muse Spark reads the same video."
+    <Panel
+      id="panel-demo"
+      title="The demo"
+      hint="One clip is all it gets. SAM 3.1 follows every object through it, and Muse Spark reads the same video."
+      status={status}
     >
       <VideoStage
         src={sample.videoUrl}
@@ -46,8 +55,14 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
       {learn && <Timeline learn={learn} time={time} onSeek={seek} />}
 
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <Button variant="primary" icon={<Eye size={18} />} disabled={busy} onClick={onLearn}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant={learn ? 'ghost' : 'primary'}
+            size="lg"
+            icon={<Eye size={20} />}
+            disabled={busy}
+            onClick={onLearn}
+          >
             {learn ? 'Watch again' : 'Learn from this video'}
           </Button>
           {busy && (
@@ -75,7 +90,7 @@ export function TeachPanel({ sample, job, starting, startError, onLearn }: Props
           </dl>
         )}
       </div>
-    </Section>
+    </Panel>
   )
 }
 
@@ -83,7 +98,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs text-ink-faint">{label}</dt>
-      <dd className="mt-1 font-mono text-sm text-ink">{value}</dd>
+      <dd className="mt-1 font-display text-xl font-semibold">{value}</dd>
     </div>
   )
 }

@@ -1,29 +1,35 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/bricolage-grotesque';
 
+/* A workshop bench: cool concrete, near-black ink, and the orange of an industrial arm.
+   Video sits in dark "viewport" frames so the footage is the brightest thing on the page. */
 @theme {
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --font-display: 'Bricolage Grotesque Variable', 'Geist Variable', ui-sans-serif, sans-serif;
 
-  --color-canvas: #09090b;
-  --color-raised: #111114;
-  --color-sunken: #0c0c0f;
-  --color-line: rgb(255 255 255 / 0.08);
-  --color-line-strong: rgb(255 255 255 / 0.14);
-  --color-ink: #f4f4f5;
-  --color-ink-dim: #a1a1aa;
-  --color-ink-faint: #71717a;
-  --color-accent: #34d399;
-  --color-accent-dim: #10b981;
-  --color-danger: #fb7185;
+  --color-canvas: #e6eaed;
+  --color-raised: #f7f8f9;
+  --color-sunken: #dce1e5;
+  --color-viewport: #0f1318;
+  --color-line: rgb(17 21 26 / 0.12);
+  --color-line-strong: rgb(17 21 26 / 0.24);
+  --color-ink: #11151a;
+  --color-ink-dim: #44505b;
+  --color-ink-faint: #5e6a75;
+  --color-accent: #ff5a1f;
+  --color-accent-hover: #ff7440;
+  --color-ok: #0f8a58;
+  --color-danger: #c62839;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
     background: var(--color-canvas);
   }
   body {
@@ -31,10 +37,10 @@
     font-feature-settings: 'ss01', 'cv11';
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-accent;
+    @apply outline-2 outline-offset-2 outline-ink;
   }
   ::selection {
-    background: rgb(52 211 153 / 0.3);
+    background: rgb(255 90 31 / 0.3);
   }
 }
 
@@ -47,14 +53,39 @@
 @utility skeleton {
   position: relative;
   overflow: hidden;
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(17 21 26 / 0.07);
   &::after {
     content: '';
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
     animation: shimmer 1.6s var(--ease-out-expo) infinite;
+  }
+}
+
+/* A dark frame for footage, with the four crop marks of a camera viewfinder. */
+@utility viewport {
+  position: relative;
+  background: var(--color-viewport);
+  border-radius: 1rem;
+  overflow: hidden;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    z-index: 1;
+    pointer-events: none;
+    --m: rgb(255 255 255 / 0.35);
+    background:
+      linear-gradient(var(--m), var(--m)) top left / 12px 1px no-repeat,
+      linear-gradient(var(--m), var(--m)) top left / 1px 12px no-repeat,
+      linear-gradient(var(--m), var(--m)) top right / 12px 1px no-repeat,
+      linear-gradient(var(--m), var(--m)) top right / 1px 12px no-repeat,
+      linear-gradient(var(--m), var(--m)) bottom left / 12px 1px no-repeat,
+      linear-gradient(var(--m), var(--m)) bottom left / 1px 12px no-repeat,
+      linear-gradient(var(--m), var(--m)) bottom right / 12px 1px no-repeat,
+      linear-gradient(var(--m), var(--m)) bottom right / 1px 12px no-repeat;
   }
 }
 
