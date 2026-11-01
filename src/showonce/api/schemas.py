@@ -98,6 +98,16 @@ class CheckOut(ApiModel):
     detail: str
 
 
+class FixesOut(ApiModel):
+    """What SAM saw on the finished table, and the one corrective try it triggered."""
+
+    before: list[CheckOut]
+    after: list[CheckOut]
+    retried: list[str]
+    missed: bool
+    fixed: bool
+
+
 class RunResultOut(ApiModel):
     video_url: str
     success: bool
@@ -105,6 +115,7 @@ class RunResultOut(ApiModel):
     checks: list[CheckOut]
     step_times_s: list[float]
     perception_error_mm: dict[str, float]
+    fixes: FixesOut | None = None
 
 
 class JobOut(ApiModel):
@@ -147,3 +158,4 @@ class RunRequest(ApiModel):
     steps: list[StepModel] = Field(min_length=1)
     seed: int = 0
     oracle: bool = False
+    slip: bool = False  # stage a miss: drop one object after the run so SAM has something to catch

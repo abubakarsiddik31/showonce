@@ -84,13 +84,25 @@ export const learnResultSchema = z.object({
 export type LearnResult = z.infer<typeof learnResultSchema>
 export type Move = LearnResult['moves'][number]
 
+const checkSchema = z.object({ step: z.string(), ok: z.boolean(), detail: z.string() })
+
+export const fixesSchema = z.object({
+  before: z.array(checkSchema),
+  after: z.array(checkSchema),
+  retried: z.array(z.string()),
+  missed: z.boolean(),
+  fixed: z.boolean(),
+})
+export type Fixes = z.infer<typeof fixesSchema>
+
 export const runResultSchema = z.object({
   videoUrl: z.string(),
   success: z.boolean(),
   seed: z.number(),
-  checks: z.array(z.object({ step: z.string(), ok: z.boolean(), detail: z.string() })),
+  checks: z.array(checkSchema),
   stepTimesS: z.array(z.number()),
   perceptionErrorMm: z.record(z.string(), z.number()),
+  fixes: fixesSchema.nullable().optional(),
 })
 export type RunResult = z.infer<typeof runResultSchema>
 

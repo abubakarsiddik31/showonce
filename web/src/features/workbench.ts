@@ -11,6 +11,7 @@ export interface WorkbenchState {
   answer: string | null
   seed: number
   oracle: boolean
+  slip: boolean
 }
 
 export type WorkbenchAction =
@@ -25,6 +26,7 @@ export type WorkbenchAction =
   | { type: 'restore' }
   | { type: 'seed'; seed: number }
   | { type: 'oracle'; oracle: boolean }
+  | { type: 'slip'; slip: boolean }
 
 export const initialState: WorkbenchState = {
   steps: [],
@@ -32,6 +34,7 @@ export const initialState: WorkbenchState = {
   answer: null,
   seed: 3,
   oracle: false,
+  slip: false,
 }
 
 let counter = 0
@@ -43,7 +46,7 @@ const refresh = (step: EditableStep): EditableStep => ({ ...step, text: describe
 export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction): WorkbenchState {
   switch (action.type) {
     case 'reset':
-      return { ...initialState, seed: state.seed, oracle: state.oracle }
+      return { ...initialState, seed: state.seed, oracle: state.oracle, slip: state.slip }
     case 'learned': {
       const steps = withIds(action.steps)
       return { ...state, steps, learned: steps, answer: null }
@@ -71,6 +74,8 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
       return { ...state, seed: action.seed }
     case 'oracle':
       return { ...state, oracle: action.oracle }
+    case 'slip':
+      return { ...state, slip: action.slip }
   }
 }
 

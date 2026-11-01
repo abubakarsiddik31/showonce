@@ -166,13 +166,14 @@ uv run showonce ui                         # the web app (see below)
 
 ## Web app
 
-`uv run showonce ui` serves the app at http://127.0.0.1:8000. Teach: pick a sample clip (or upload your own) and learn the task. Task program: edit the steps, and answer a question if the two readings of the demo disagree. Do: run the steps on a shuffled table in the simulator.
+`make backend` (or `uv run showonce ui`) serves the app at http://127.0.0.1:8000. It reads left to right: **The demo** (pick a sample clip or upload your own, and learn the task), **What it understood** (plain steps you can correct in words or edit, with a question if the two readings of the demo disagree), and **On a new table** (the arm runs the steps on a shuffled table, then SAM checks the finished table and the arm fixes a miss once). *Options → Make it slip* drops an object after the run so you can watch that check catch it. The step list lights up in step with the arm's video.
 
 The frontend is React, TypeScript and Tailwind in `web/`:
 
 ```bash
 cd web && pnpm install
 pnpm dev        # http://localhost:5173, proxies /api to the Python server
+                # (SHOWONCE_API=http://127.0.0.1:8001 pnpm dev to point it elsewhere)
 pnpm build      # writes web/dist, which `showonce ui` serves
 pnpm test && pnpm typecheck && pnpm lint
 ```

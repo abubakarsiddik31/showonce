@@ -75,21 +75,21 @@ export function targetsFor(
 }
 
 const TONES: Record<string, string> = {
-  red: '#f87171',
-  orange: '#fb923c',
-  yellow: '#facc15',
-  green: '#4ade80',
-  blue: '#60a5fa',
-  purple: '#c084fc',
-  pink: '#f472b6',
-  white: '#e4e4e7',
+  red: '#d93636',
+  orange: '#e8710a',
+  yellow: '#c99a06',
+  green: '#1e9e4f',
+  blue: '#2f6fdb',
+  purple: '#8a4fd1',
+  pink: '#d6428c',
+  white: '#8b97a2',
 }
 
 /** The colour an object's own name suggests, so chips match what is on the table. */
 export function objectTone(name: string): string {
   const lower = name.toLowerCase()
   for (const [word, tone] of Object.entries(TONES)) if (lower.includes(word)) return tone
-  return '#a1a1aa'
+  return '#6b7782'
 }
 
 export const cn = (...parts: Array<string | false | null | undefined>): string =>

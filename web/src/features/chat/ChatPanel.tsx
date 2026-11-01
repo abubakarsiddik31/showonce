@@ -33,7 +33,7 @@ function Bubble({ message }: { message: ChatMessage }) {
           'max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
           robot
             ? 'rounded-tl-md border border-line bg-raised text-ink'
-            : 'rounded-tr-md bg-accent/15 text-ink',
+            : 'rounded-tr-md bg-accent/25 text-ink',
         )}
       >
         <p>{message.text}</p>
@@ -78,7 +78,7 @@ export function ChatPanel({ messages, confirmed, thinking, onSend, onConfirm, on
   }, [messages.length, thinking])
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-sunken p-3">
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-sunken/60 p-3">
       <ul
         aria-live="polite"
         aria-label="Conversation"

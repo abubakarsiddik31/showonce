@@ -46,7 +46,7 @@ export function VideoStage({ src, learn, time, onTime, seekTo }: Props) {
   }, [])
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-sunken">
+    <div className="viewport">
       <div className="relative aspect-video">
         <video
           ref={video}
@@ -65,16 +65,16 @@ export function VideoStage({ src, learn, time, onTime, seekTo }: Props) {
         />
         {learn && <Overlay learn={learn} time={time} />}
       </div>
-      <div className="flex items-center gap-3 border-t border-line px-3 py-2">
+      <div className="relative z-[2] flex items-center gap-3 border-t border-white/10 px-3 py-2">
         <button
           type="button"
           onClick={toggle}
           aria-label={playing ? 'Pause demo' : 'Play demo'}
-          className="grid size-8 place-items-center rounded-lg text-ink transition-colors hover:bg-white/10 active:scale-95"
+          className="grid size-8 place-items-center rounded-lg text-white transition-colors hover:bg-white/10 active:scale-95"
         >
           {playing ? <Pause size={18} weight="fill" /> : <Play size={18} weight="fill" />}
         </button>
-        <span className="font-mono text-xs text-ink-dim tabular-nums">{formatTime(time)}</span>
+        <span className="font-mono text-xs text-white/70 tabular-nums">{formatTime(time)}</span>
       </div>
     </div>
   )
@@ -99,16 +99,16 @@ const Overlay = memo(function Overlay({ learn, time }: { learn: LearnResult; tim
             width={c.x2 - c.x1}
             height={c.y2 - c.y1}
             rx={unit}
-            fill="rgb(52 211 153 / 0.06)"
-            stroke="#34d399"
-            strokeOpacity={0.55}
+            fill="rgb(255 90 31 / 0.10)"
+            stroke="#ff7440"
+            strokeOpacity={0.8}
             strokeWidth={unit * 0.25}
             strokeDasharray={`${unit * 1.2} ${unit * 0.8}`}
           />
           <text
             x={c.x1 + unit}
             y={c.y1 - unit * 0.8}
-            fill="#34d399"
+            fill="#ff9b75"
             fontSize={unit * 1.7}
             fontFamily="Geist Mono Variable, monospace"
           >

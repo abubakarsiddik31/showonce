@@ -41,8 +41,8 @@ describe('wipe and open steps', () => {
 
 describe('objectTone', () => {
   it('uses the colour word in the name, with a neutral fallback', () => {
-    expect(objectTone('green block')).toBe('#4ade80')
-    expect(objectTone('spanner')).toBe('#a1a1aa')
+    expect(objectTone('green block')).toBe('#1e9e4f')
+    expect(objectTone('spanner')).toBe('#6b7782')
   })
 })
 
