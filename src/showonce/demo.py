@@ -8,7 +8,7 @@ from pathlib import Path
 
 import cv2
 
-from showonce.chat import describe_plan, understand
+from showonce.chat import clean_steps, describe_plan, drop_setting_down, understand
 from showonce.geometry import Calibration
 from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
@@ -86,13 +86,21 @@ def resolve_containers(client: MetaClient, video: Path, scene: SceneSpec) -> lis
 
 
 def _read_with_muse_spark(client: MetaClient, video: Path, scene: SceneSpec) -> list[Step] | None:
+    """Muse Spark's reading of the clip, with any step that makes no sense on this table dropped.
+
+    The model sometimes turns a detail into a step of its own, such as laying down a torn-off
+    seal becoming "put the bag beside the bag". Those would send the robot off to do nonsense.
+    """
+    containers = [c.name for c in scene.containers]
     try:
-        return client.plan_video(
-            client.upload_video(video), list(scene.prompts), [c.name for c in scene.containers]
-        )
+        raw = client.plan_video(client.upload_video(video), list(scene.prompts), containers)
     except (MetaAPIError, ValueError, KeyError) as exc:
         log.warning("Muse Spark could not read %s: %s", video.name, exc)
         return None
+    steps = drop_setting_down(clean_steps(raw, list(scene.prompts), containers))
+    for dropped in (s for s in raw if s not in steps):
+        log.warning("Dropped a step that makes no sense on this table: %s", dropped)
+    return steps
 
 
 def _understand(client: MetaClient, video: Path, steps: list[Step]) -> str:
@@ -114,6 +122,9 @@ def fit_profiles(
     """
     fitted = dict(profiles)
     for step in program.steps:
+        if step.action == "wipe" and (target := fitted.get(step.target)) is not None:
+            # Its stains are simulated, so a picture with real stains would never look clean.
+            fitted[step.target] = target.model_copy(update={"texture": None})
         profile = fitted.get(step.object)
         if profile is None:
             continue
@@ -128,7 +139,9 @@ def fit_profiles(
     return fitted
 
 
-def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learned:
+def learn_from_video(
+    client: MetaClient, video: Path, scene: SceneSpec, texture_dir: Path | None = None
+) -> Learned:
     """Watch the clip with SAM 3.1 and Muse Spark, then compile a task program.
 
     SAM geometry is the primary signal. Muse Spark's independent reading is cross-checked
@@ -137,7 +150,7 @@ def learn_from_video(client: MetaClient, video: Path, scene: SceneSpec) -> Learn
     width, height = scene.size or frame_size(video)
     calibration = Calibration.for_frame(width, height)
     scene = scene.model_copy(update={"containers": resolve_containers(client, video, scene)})
-    profiles = profile_objects(client, first_frame(video), scene)
+    profiles = profile_objects(client, first_frame(video), scene, texture_dir)
     obs = observe(client, video, scene.prompts)
     semantic = _read_with_muse_spark(client, video, scene)
     source = "geometry"
@@ -170,7 +183,11 @@ def run_in_sim(program: TaskProgram, layout: Layout, record_to: Path | None = No
     world = build_world(layout, program)
     recorder = SimRecorder(world) if record_to else None
     controller = PandaController(world, on_step=recorder.capture if recorder else None)
-    execute(program, world, controller, layout.regions)
-    if recorder and record_to:
-        recorder.save(record_to)
+    try:
+        execute(program, world, controller, layout.regions)
+        if recorder and record_to:
+            recorder.save(record_to)
+    finally:
+        if recorder:
+            recorder.close()
     return RunResult(verify(program, world, layout.regions))

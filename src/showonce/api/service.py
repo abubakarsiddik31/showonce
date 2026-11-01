@@ -197,7 +197,8 @@ class Workspace:
                     found = discover_scene(client, video, found.name)
                     scene_path.write_text(found.model_dump_json(indent=2))
                 progress("Watching the clip with SAM 3.1 and Muse Spark")
-                learned = learn_from_video(client, video, found)
+                textures = self.runs_dir / "textures" / sample_id
+                learned = learn_from_video(client, video, found, textures)
             path = self._resolved_scene_path(sample_id)
             path.parent.mkdir(parents=True, exist_ok=True)
             assert learned.scene is not None

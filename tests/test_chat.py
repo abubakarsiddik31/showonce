@@ -309,3 +309,62 @@ def test_clips_carry_a_title_and_a_group_for_the_app(tmp_path: Path) -> None:
     found = {s["id"]: s for s in TestClient(create_app(settings)).get("/api/samples").json()}
     assert (found["wash"]["title"], found["wash"]["group"]) == ("Wash the plates", "Chores")
     assert (found["plain"]["title"], found["plain"]["group"]) == ("Plain", "More clips")
+
+
+# -- the plan read from the clip is checked like any other ------------------------------------
+
+
+class Planner:
+    """A stand-in for Muse Spark that returns whatever plan it is given."""
+
+    def __init__(self, plan: list[Step]) -> None:
+        self.plan = plan
+
+    def upload_video(self, video: Path) -> str:
+        return "file-1"
+
+    def plan_video(self, file_id: str, objects: list[str], containers: list[str]) -> list[Step]:
+        return self.plan
+
+
+def test_a_step_that_moves_the_bag_beside_itself_is_dropped_from_the_plan_it_reads() -> None:
+    """Real case: laying the torn-off seal down came back as 'put red chips right of red chips'."""
+    from showonce.demo import _read_with_muse_spark
+    from showonce.scene_spec import SceneSpec
+
+    bad = Step(object="red chips", action="place_near", target="red chips", relation="right_of")
+    opened = Step(object="red chips", action="open", target="red chips")
+    scene = SceneSpec(prompts={"red chips": "red chips bag"})
+    read = _read_with_muse_spark(Planner([opened, bad]), Path("clip.mp4"), scene)  # type: ignore[arg-type]
+    assert read == [opened]
+
+
+def test_a_sensible_plan_is_read_unchanged() -> None:
+    from showonce.demo import _read_with_muse_spark
+    from showonce.scene_spec import SceneSpec
+
+    plan = [wipe("white plate"), wipe("blue plate")]
+    scene = SceneSpec(prompts={n: n for n in OBJECTS})
+    assert _read_with_muse_spark(Planner(plan), Path("c.mp4"), scene) == plan  # type: ignore[arg-type]
+
+
+def test_putting_the_tool_down_after_using_it_is_not_a_step_of_its_own() -> None:
+    """Real case: wiping a plate came back as wipe, then 'put the sponge next to the plate'."""
+    from showonce.chat import drop_setting_down
+
+    down = Step(
+        object="yellow sponge", action="place_near", target="white plate", relation="next_to"
+    )
+    plan = [wipe("white plate"), down, wipe("blue plate")]
+    assert drop_setting_down(plan) == [wipe("white plate"), wipe("blue plate")]
+
+
+def test_moving_something_on_purpose_is_kept() -> None:
+    from showonce.chat import drop_setting_down
+
+    to_tray = Step(object="yellow sponge", action="place_in", target="tray")
+    elsewhere = Step(
+        object="yellow sponge", action="place_near", target="blue plate", relation="left_of"
+    )
+    plan = [wipe("white plate"), to_tray, elsewhere]
+    assert drop_setting_down(plan) == plan  # put in a tray, or beside a different thing: on purpose

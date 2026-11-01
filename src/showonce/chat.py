@@ -105,6 +105,30 @@ def clean_steps(
     return out
 
 
+_USES = frozenset({"wipe", "stir", "cut", "pour"})
+
+
+def drop_setting_down(steps: Sequence[Step]) -> list[Step]:
+    """Drop "put the tool next to what it was just used on", which is only setting it down.
+
+    A person wiping a plate and then putting the sponge down beside it did one thing, not two,
+    and the robot already puts a tool back where it found it.
+    """
+    kept: list[Step] = []
+    for step in steps:
+        before = kept[-1] if kept else None
+        setting_down = (
+            before is not None
+            and before.action in _USES
+            and step.action == "place_near"
+            and step.object == before.object
+            and step.target == before.target
+        )
+        if not setting_down:
+            kept.append(step)
+    return kept
+
+
 def talk(
     client: MetaClient,
     objects: list[str],

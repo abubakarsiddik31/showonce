@@ -81,6 +81,7 @@ class BlockDef:
     name: str
     rgba: tuple[float, float, float, float]
     shape: Shape
+    texture: str | None = None  # a picture of the real object, laid on its top (boxes, round dishes)
 
 
 def lid_name(name: str) -> str:
@@ -95,7 +96,7 @@ def strip_offset(shape: Shape) -> tuple[float, float]:
 def block_def(name: str, profile: ObjectProfile | None = None) -> BlockDef:
     """Build an object from its profile; without one, guess from the name."""
     profile = profile or profile_from_name(name)
-    return BlockDef(name, (*color_of(name, profile), 1.0), shape_of(profile))
+    return BlockDef(name, (*color_of(name, profile), 1.0), shape_of(profile), profile.texture)
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,9 +129,7 @@ class SimWorld:
         self._rgb = {b.name: b.rgba[:3] for b in blocks}
         self._zones = {z.name: z for z in zones or []}
         spec = mujoco.MjSpec.from_file(str(panda_xml))
-        self._build_scene(
-            spec, blocks, zones or [], set(dirty), set(contents), set(pour_targets)
-        )
+        self._build_scene(spec, blocks, zones or [], set(dirty), set(contents), set(pour_targets))
         self.model = spec.compile()
         self.data = mujoco.MjData(self.model)
         # Cancel gravity on the arm so position actuators do not sag; objects keep gravity.
@@ -151,9 +150,7 @@ class SimWorld:
         self._contents: dict[str, str | None] = {name: "full" for name in contents}
         self._mixed: set[str] = set()
         self._content_geoms = {
-            name: mujoco.mj_name2id(
-                self.model, mujoco.mjtObj.mjOBJ_GEOM, f"contents_{name}"
-            )
+            name: mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, f"contents_{name}")
             for name in (*contents, *pour_targets)
         }
         for name in pour_targets:
@@ -222,6 +219,7 @@ class SimWorld:
             body = world.add_body(name=block.name, pos=start)
             body.add_freejoint()
             SimWorld._add_object_geoms(body, block)
+            SimWorld._add_picture(spec, body, block)
             if block.name in dirty:
                 hx, hy, hz = block.shape.half
                 SimWorld._add_dirt(body, block.name, (0.0, 0.0, hz), (hx, hy))
@@ -307,6 +305,40 @@ class SimWorld:
         body.add_geom(name=f"{block.name}_geom", type=kind, size=size, rgba=rgba, **physics)
         if shape.handle > 0:
             SimWorld._add_handle(body, block)
+
+    @staticmethod
+    def _add_picture(spec: mujoco.MjSpec, body: mujoco.MjsBody, block: BlockDef) -> None:
+        """Lay the picture of the real object on top of a box or dish, so the sim looks like it.
+
+        It is a decal: a sheet a fraction of a millimetre thick that neither collides nor weighs
+        anything. The picture is the sim-oriented copy written when the clip was learned.
+        """
+        if block.texture is None or block.shape.kind not in ("box", "cylinder"):
+            return
+        picture = Path(block.texture)
+        picture = picture.with_name(f"{picture.stem}.sim.png")
+        if not picture.is_file():
+            return
+        hx, hy, hz = block.shape.half
+        texture = spec.add_texture(
+            name=f"picture {block.name}",
+            type=mujoco.mjtTexture.mjTEXTURE_2D,
+            file=str(picture.resolve()),
+        )
+        assert texture is not None
+        material = spec.add_material(name=f"picture {block.name}")
+        material.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = texture.name
+        round_ = block.shape.kind == "cylinder"
+        body.add_geom(
+            name=f"{block.name}_picture",
+            type=mujoco.mjtGeom.mjGEOM_CYLINDER if round_ else mujoco.mjtGeom.mjGEOM_BOX,
+            pos=[0, 0, hz + 0.0003],  # just under a packet's slit, so that still shows
+            size=[hx, 0.0002, 0] if round_ else [hx, hy, 0.0002],
+            material=material.name,
+            contype=0,
+            conaffinity=0,
+            mass=0.001,
+        )
 
     @staticmethod
     def _add_packet_body(

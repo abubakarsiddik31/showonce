@@ -160,48 +160,52 @@ def replay(
     layout = Layout(truth, regions, scene.profiles)
     world: SimWorld = build_world(layout, program)
     recorder = SimRecorder(world) if record_to else None
-    controller = PandaController(world)
-    controller.park()  # out of the top camera's view; none of this is recorded
-    perceived = None
-    errors: dict[str, float] = {}
-    if not oracle:
-        if client is None:
-            raise ValueError("A Meta client is required unless oracle=True")
-        perceived = perceive_blocks(client, world, scene.sim_prompt_options, calibration)
-        errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
-    controller.reset_to_home()  # the video opens on the arm ready, not swinging in from the side
-    if recorder:
-        controller.on_step = recorder.capture
-        recorder.capture()
-    step_frames: list[int] = []
-
-    def step_done(index: int, text: str) -> None:
-        step_frames.append(len(recorder.frames) if recorder else 0)
-        if on_step_done is not None:
-            on_step_done(index, text)
-
-    execute(program, world, controller, regions, perceived, step_done)
-    if slip is not None:
-        world.set_block(slip, slip_spot(world, regions, slip, seed))
+    try:
+        controller = PandaController(world)
+        controller.park()  # out of the top camera's view; none of this is recorded
+        perceived = None
+        errors: dict[str, float] = {}
+        if not oracle:
+            if client is None:
+                raise ValueError("A Meta client is required unless oracle=True")
+            perceived = perceive_blocks(client, world, scene.sim_prompt_options, calibration)
+            errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
+        controller.reset_to_home()  # the video opens on the arm ready, not swinging in
         if recorder:
+            controller.on_step = recorder.capture
             recorder.capture()
-    fixes: FixReport | None = None
-    if sam_verify:
-        if client is None:
-            raise ValueError("A Meta client is required for sam_verify")
-        sam_client = client
+        step_frames: list[int] = []
 
-        def look(names: list[str]) -> dict[str, XY]:
-            return perceive_blocks(
-                sam_client,
-                world,
-                {n: scene.sim_prompt_options[n] for n in names},
-                calibration,
+        def step_done(index: int, text: str) -> None:
+            step_frames.append(len(recorder.frames) if recorder else 0)
+            if on_step_done is not None:
+                on_step_done(index, text)
+
+        execute(program, world, controller, regions, perceived, step_done)
+        if slip is not None:
+            world.set_block(slip, slip_spot(world, regions, slip, seed))
+            if recorder:
+                recorder.capture()
+        fixes: FixReport | None = None
+        if sam_verify:
+            if client is None:
+                raise ValueError("A Meta client is required for sam_verify")
+            sam_client = client
+
+            def look(names: list[str]) -> dict[str, XY]:
+                return perceive_blocks(
+                    sam_client,
+                    world,
+                    {n: scene.sim_prompt_options[n] for n in names},
+                    calibration,
+                )
+
+            fixes = fix_misses(
+                program, world, controller, regions, look, list(truth), on_step_done=None
             )
-
-        fixes = fix_misses(
-            program, world, controller, regions, look, list(truth), on_step_done=None
-        )
-    if recorder and record_to:
-        recorder.save(record_to)
-    return ReplayResult(verify(program, world, regions), errors, step_frames, fixes)
+        if recorder and record_to:
+            recorder.save(record_to)
+        return ReplayResult(verify(program, world, regions), errors, step_frames, fixes)
+    finally:
+        if recorder:
+            recorder.close()

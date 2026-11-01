@@ -22,6 +22,7 @@ class SimRecorder:
         self.world = world
         self.renderer = mujoco.Renderer(world.model, height, width)
         self.frames: list[Image] = []
+        self.closed = False
         self.camera = mujoco.MjvCamera()
         self.camera.lookat[:] = [0.38, -0.03, 0.2]
         self.camera.distance = 1.68
@@ -32,7 +33,17 @@ class SimRecorder:
         self.renderer.update_scene(self.world.data, camera=self.camera)
         self.frames.append(self.renderer.render().copy())
 
+    def close(self) -> None:
+        """Release the renderer. The simulator process lives on and runs clip after clip, and an
+        open renderer keeps the last model's drawing state, so one run's pictures could end up
+        on the next run's objects."""
+        if not self.closed:
+            self.closed = True
+            self.renderer.close()
+
     def save(self, path: Path, fps: int = SIM_FPS) -> None:
+        """Write the video. The frames are already captured, so this is also the end of the run."""
+        self.close()
         path.parent.mkdir(parents=True, exist_ok=True)
         with imageio.get_writer(
             path, fps=fps, codec="libx264", pixelformat="yuv420p", macro_block_size=2

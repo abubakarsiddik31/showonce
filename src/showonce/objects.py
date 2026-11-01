@@ -50,6 +50,7 @@ class ObjectProfile(BaseModel):
     openable: bool = False  # a sealed bag, packet or box: a lid you pull off to get inside
     pressable: bool = False  # a button, pump or push-light: press it straight down
     rgb: RGB | None = None  # colour sampled from the clip, used when the name has no colour word
+    texture: str | None = None  # a picture of the object cut from the clip, seen from above
 
 
 def color_in(name: str) -> str | None:

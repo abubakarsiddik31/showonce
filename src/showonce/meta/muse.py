@@ -33,7 +33,11 @@ List every completed step in the order it happens. For each step give:
   same as object
 - relation: only for "place_near" (and "push" toward an object): one of "next_to", "left_of",
   "right_of", "in_front_of", "behind", from the camera's point of view
-Only list steps that actually happened. Do not invent steps."""
+Only list steps that actually happened. Do not invent steps. Never use the same thing as both
+object and target, except for "open" and "press". What happens to a piece that comes off, such as
+a torn-off seal or lid being laid down, is part of the "open" step, not a step of its own. In the
+same way, setting a tool or cup back down after using it is part of the wipe, stir, cut or pour
+step. Only list an object being put somewhere when moving it there was the point."""
 
 
 def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, Any]:
