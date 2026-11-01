@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup assets ui web-dev web-build demo replay eval-demo eval-replay sim-test test lint typecheck check
+.PHONY: help setup assets ui web-dev web-build demo replay tidy eval-demo eval-replay sim-test test lint typecheck check
 
 SAMPLE ?= toys_into_bin
 SEED   ?= 3
@@ -29,6 +29,9 @@ demo: ## Learn a sample and run it (SAMPLE=toys_into_bin)
 
 replay: ## Replay a learned program on a shuffled layout (SAMPLE, SEED)
 	uv run showonce replay runs/$(SAMPLE)/program.json --scene runs/$(SAMPLE)/scene.json --seed $(SEED)
+
+tidy: ## Tidy a scattered table with no demo (SEED)
+	uv run showonce tidy samples/tidy_table.json --seed $(SEED)
 
 eval-demo: ## Score video -> program -> robot on all samples
 	uv run showonce eval-demo

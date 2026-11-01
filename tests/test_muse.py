@@ -40,13 +40,34 @@ def test_step_schema_knows_all_ten_actions_and_the_relation() -> None:
     schema = step_schema(["red cup"], ["bowl"])
     item = schema["properties"]["steps"]["items"]
     assert set(item["properties"]["action"]["enum"]) == {
-        "place_in", "stack_on", "wipe", "open",
-        "place_near", "push", "pour", "stir", "cut", "press",
+        "place_in",
+        "stack_on",
+        "wipe",
+        "open",
+        "place_near",
+        "push",
+        "pour",
+        "stir",
+        "cut",
+        "press",
     }
     assert item["properties"]["relation"]["enum"] == [
-        "next_to", "left_of", "right_of", "in_front_of", "behind"
+        "next_to",
+        "left_of",
+        "right_of",
+        "in_front_of",
+        "behind",
+        None,
     ]
-    assert "relation" not in item["required"]
+    # The API's strict mode rejects a schema unless every property is required.
+    assert set(item["required"]) == set(item["properties"])
+
+
+def test_a_null_relation_reads_as_no_relation() -> None:
+    steps = parse_steps(
+        '{"steps":[{"object":"a","action":"place_in","relation":null,"target":"box"}]}'
+    )
+    assert steps[0].relation is None
 
 
 def test_prompt_names_every_action() -> None:

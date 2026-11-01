@@ -54,13 +54,21 @@ def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, 
                                 "place_near", "push", "pour", "stir", "cut", "press",
                             ],
                         },
+                        # Strict schemas must list every key as required, so "no relation" is null.
                         "relation": {
-                            "type": "string",
-                            "enum": ["next_to", "left_of", "right_of", "in_front_of", "behind"],
+                            "type": ["string", "null"],
+                            "enum": [
+                                "next_to",
+                                "left_of",
+                                "right_of",
+                                "in_front_of",
+                                "behind",
+                                None,
+                            ],
                         },
                         "target": {"type": "string", "enum": [*objects, *containers]},
                     },
-                    "required": ["object", "action", "target"],
+                    "required": ["object", "action", "relation", "target"],
                     "additionalProperties": False,
                 },
             }
@@ -68,6 +76,52 @@ def step_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, 
         "required": ["steps"],
         "additionalProperties": False,
     }
+
+
+TIDY_ACTIONS = ("place_in", "stack_on", "place_near", "push")
+TIDY_PROMPT = """\
+This picture is of a messy table, seen from above. A robot arm with one gripper will tidy it.
+Objects, with their positions on the table in centimetres (x grows away from the robot, which
+is toward the top of the picture; y grows toward the left of the picture):
+{objects}
+Containers (they cannot be moved): {containers}.
+Goal: {goal}
+
+Plan the fewest steps that leave the table tidy. Each step is one of:
+  "place_in": put an object into a container
+  "stack_on": put an object on top of a flat-topped object (never on a round one)
+  "place_near": set an object on the table beside another object; relation says on which side,
+    from the picture's point of view: next_to, left_of, right_of, in_front_of (toward the bottom
+    of the picture) or behind (toward the top)
+  "push": slide something too wide to lift into a container or beside another object
+Rules: move each object at most once. Never move an object after something is stacked on it.
+Leave alone anything that is already tidy. Group things that belong together. Use only the
+names listed above."""
+
+
+def tidy_schema(objects: Sequence[str], containers: Sequence[str]) -> dict[str, Any]:
+    """The step schema, limited to the actions a tidy-up can use."""
+    schema = step_schema(objects, containers)
+    schema["properties"]["steps"]["items"]["properties"]["action"]["enum"] = list(TIDY_ACTIONS)
+    return schema
+
+
+def tidy_request(
+    model: str,
+    image_url: str,
+    goal: str,
+    positions: dict[str, tuple[float, float]],
+    containers: Sequence[str],
+) -> dict[str, Any]:
+    objects = "\n".join(
+        f"- {name}: x {x * 100:.0f}, y {y * 100:.0f}" for name, (x, y) in positions.items()
+    )
+    prompt = TIDY_PROMPT.format(
+        objects=objects, containers=", ".join(containers) or "none", goal=goal
+    )
+    return _image_request(
+        model, image_url, prompt, "tidy_plan", tidy_schema(list(positions), containers)
+    )
 
 
 DESCRIBE_PROMPT = """\
