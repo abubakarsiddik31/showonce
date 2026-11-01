@@ -81,7 +81,7 @@ class BlockDef:
     name: str
     rgba: tuple[float, float, float, float]
     shape: Shape
-    texture: str | None = None  # a picture of the real object, laid on its top (boxes, round dishes)
+    texture: str | None = None  # a picture of the real thing, laid on top (boxes, round dishes)
 
 
 def lid_name(name: str) -> str:
