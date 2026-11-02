@@ -4,5 +4,5 @@
   "size": [1280, 720],
   "prompts": {"green book": "large green book", "red block": "red block"},
   "container_prompts": {},
-  "steps": [{"object": "green book", "action": "push", "target": "red block", "relation": "behind"}]
+  "steps": [{"object": "green book", "action": "push", "target": "red block", "relation": "in_front_of"}]
 }

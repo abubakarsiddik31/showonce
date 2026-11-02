@@ -11,6 +11,7 @@ from showonce.sim.executor import (
     Region,
     build_world,
     execute,
+    execute_with_repair,
     slot_xy,
     verify,
 )
@@ -203,3 +204,58 @@ def test_push_refuses_a_blocked_path() -> None:
     world = build_world(layout, program)
     with pytest.raises(ExecutionError, match="blocked"):
         execute(program, world, PandaController(world), [])
+
+
+def test_no_failure_means_no_advice_called() -> None:
+    profiles = {
+        "red block": ObjectProfile(shape="box", width=0.05, depth=0.05, height=0.05),
+        "blue block": ObjectProfile(shape="box", width=0.05, depth=0.05, height=0.05),
+    }
+    layout = Layout({"red block": (0.35, -0.1), "blue block": (0.5, 0.1)}, [], profiles)
+    program = TaskProgram(
+        name="t",
+        steps=[
+            Step(
+                object="red block",
+                action="place_near",
+                target="blue block",
+                relation="left_of",
+            )
+        ],
+    )
+    world = build_world(layout, program)
+    calls: list = []
+
+    def advise(step: Step, detail: str) -> tuple[float, float]:
+        calls.append((step, detail))
+        return (0.0, 0.0)
+
+    checks = execute_with_repair(program, world, PandaController(world), [], advise)
+    assert all(c.ok for c in checks) and calls == []
+
+
+@needs_panda
+def test_a_place_near_nudge_shifts_the_set_down_spot() -> None:
+    profiles = {
+        "red block": ObjectProfile(shape="box", width=0.05, depth=0.05, height=0.05),
+        "blue block": ObjectProfile(shape="box", width=0.05, depth=0.05, height=0.05),
+    }
+    layout = Layout({"red block": (0.35, -0.1), "blue block": (0.5, 0.1)}, [], profiles)
+    program = TaskProgram(
+        name="t",
+        steps=[
+            Step(
+                object="red block",
+                action="place_near",
+                target="blue block",
+                relation="left_of",
+            )
+        ],
+    )
+    world = build_world(layout, program)
+    execute(program, world, PandaController(world), [], nudges={0: (0.05, 0.0)})
+    first = world.block_pos("red block").copy()
+    world2 = build_world(layout, program)
+    execute(program, world2, PandaController(world2), [])
+    second = world2.block_pos("red block").copy()
+    assert float(first[0] - second[0]) > 0.02

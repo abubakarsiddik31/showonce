@@ -368,3 +368,33 @@ def test_moving_something_on_purpose_is_kept() -> None:
     )
     plan = [wipe("white plate"), to_tray, elsewhere]
     assert drop_setting_down(plan) == plan  # put in a tray, or beside a different thing: on purpose
+
+
+class _CannedClient:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def chat(
+        self, objects: object, containers: object, plan: object, conversation: object
+    ) -> dict:
+        return {"text": self._text}
+
+
+def test_repair_advice_reads_two_numbers() -> None:
+    from showonce.chat import repair_advice
+
+    step = Step(object="red block", action="push", target="bin")
+    assert repair_advice(_CannedClient("0.02 -0.01"), step, "stopped 3 cm short") == (
+        0.02,
+        -0.01,
+    )
+
+
+def test_repair_advice_rejects_wild_or_garbled_answers() -> None:
+    from showonce.chat import repair_advice
+
+    step = Step(object="red block", action="push", target="bin")
+    with pytest.raises(ValueError):
+        repair_advice(_CannedClient("0.50 0.00"), step, "missed")  # beyond a fingertip fix
+    with pytest.raises(ValueError):
+        repair_advice(_CannedClient("a bit to the left please"), step, "missed")

@@ -160,6 +160,7 @@ def demo(
     video: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Demo clip.")],
     scene: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Scene json.")],
     out: Annotated[Path | None, typer.Option(help="Output folder (default runs/<name>).")] = None,
+    repair: Annotated[bool, typer.Option(help="Retry a failed step with Muse advice.")] = False,
 ) -> None:
     """Learn a task from a clip, then have the simulated Panda do it."""
     from showonce.demo import learn_from_video, run_in_sim
@@ -170,21 +171,23 @@ def demo(
     folder = out or settings.runs_dir / spec.name
     with MetaClient(settings) as client:
         learned = learn_from_video(client, video, spec)
-    console.print(f"[bold]Learned program[/bold] (from {learned.source})")
-    for i, step in enumerate(learned.program.steps, 1):
-        console.print(f"  {i}. {step}")
-    if learned.semantic is None:
-        console.print("[yellow]Muse Spark did not answer, so there is no cross-check.[/yellow]")
-    elif learned.discrepancies:
-        console.print("[yellow]Muse Spark disagrees:[/yellow]")
-        for problem in learned.discrepancies:
-            console.print(f"  - {problem}")
-    else:
-        console.print("[green]Muse Spark read the same steps.[/green]")
-    learned.program.save(folder / "program.json")
-    if learned.scene is not None:
-        (folder / "scene.json").write_text(learned.scene.model_dump_json(indent=2))
-    result = run_in_sim(learned.program, learned.layout, folder / "sim.mp4")
+        console.print(f"[bold]Learned program[/bold] (from {learned.source})")
+        for i, step in enumerate(learned.program.steps, 1):
+            console.print(f"  {i}. {step}")
+        if learned.semantic is None:
+            console.print("[yellow]Muse Spark did not answer, so there is no cross-check.[/yellow]")
+        elif learned.discrepancies:
+            console.print("[yellow]Muse Spark disagrees:[/yellow]")
+            for problem in learned.discrepancies:
+                console.print(f"  - {problem}")
+        else:
+            console.print("[green]Muse Spark read the same steps.[/green]")
+        learned.program.save(folder / "program.json")
+        if learned.scene is not None:
+            (folder / "scene.json").write_text(learned.scene.model_dump_json(indent=2))
+        result = run_in_sim(
+            learned.program, learned.layout, folder / "sim.mp4", repair=repair, client=client
+        )
     table = Table(title="Robot result (simulator ground truth)")
     for column in ("step", "ok", "detail"):
         table.add_column(column)

@@ -1,0 +1,8 @@
+{
+  "name": "pexels_cut_carrots",
+  "notes": "Pexels stock footage (angled close-up, two hands). Unposed: layout is a default arrangement.",
+  "size": [1920, 1080],
+  "prompts": {"steel knife": "large kitchen knife", "carrot": "orange carrot"},
+  "container_prompts": {},
+  "steps": [{"object": "steel knife", "action": "cut", "target": "carrot"}]
+}

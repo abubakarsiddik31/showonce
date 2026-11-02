@@ -10,7 +10,7 @@ import numpy as np
 
 from showonce.geometry import RELATION_UNIT
 from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
-from showonce.program import TaskProgram
+from showonce.program import Step, TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
 from showonce.sim.skills import cut, free_spot, open_package, pour, press, stir, wipe
@@ -95,11 +95,8 @@ def _half_profiles(layout: Layout, program: TaskProgram | None) -> dict[str, Obj
 def build_world(layout: Layout, program: TaskProgram | None = None) -> SimWorld:
     """Create a world with one object per name and one tray per region."""
     full, pour_targets = contents_for(program) if program else (set(), set())
-    blocks = [
-        block_def(name, layout.profiles.get(name)) for name in layout.objects
-    ] + [
-        block_def(name, profile)
-        for name, profile in _half_profiles(layout, program).items()
+    blocks = [block_def(name, layout.profiles.get(name)) for name in layout.objects] + [
+        block_def(name, profile) for name, profile in _half_profiles(layout, program).items()
     ]
     world = SimWorld(
         blocks,
@@ -138,13 +135,15 @@ def execute(
     perceived: dict[str, XY] | None = None,
     on_step_done: Callable[[int, str], None] | None = None,
     slots_used: dict[str, int] | None = None,
+    nudges: dict[int, XY] | None = None,
 ) -> None:
     """Carry out each step in order.
 
     If ``perceived`` (object centers from vision) is given, the robot acts on those beliefs and
     updates them with where it intends to leave each object. Otherwise it reads the
     simulator's ground truth. ``slots_used`` says which slot of a container to start filling
-    from, for a repair run into a container that already holds things.
+    from, for a repair run into a container that already holds things. ``nudges`` shifts a
+    step's destination by (dx, dy) meters, for one advised retry of a miss.
     """
     by_name = {r.name: r for r in regions}
     placed: dict[str, int] = {r.name: (slots_used or {}).get(r.name, 0) for r in regions}
@@ -237,6 +236,8 @@ def execute(
                 )
             except ValueError as exc:
                 raise ExecutionError(f"No free spot for '{step.object}': {exc}") from exc
+            nudge = (nudges or {}).get(index, (0.0, 0.0))
+            near_xy = (near_xy[0] + nudge[0], near_xy[1] + nudge[1])
             controller.pick_place(
                 step.object, near_xy, 0.0, pick_at=where(step.object) if belief else None
             )
@@ -270,6 +271,8 @@ def execute(
                     raise ExecutionError(f"No free spot to push '{step.object}' to: {exc}") from exc
             else:
                 raise ExecutionError(f"Unknown push target '{step.target}' in step: {step}")
+            nudge = (nudges or {}).get(index, (0.0, 0.0))
+            to = (to[0] + nudge[0], to[1] + nudge[1])
             src = (float(where(step.object)[0]), float(where(step.object)[1]))
             for n in world.block_names:
                 if n in (step.object, step.target):
@@ -354,6 +357,8 @@ def execute(
             target_xy = slot_xy(region, placed[step.target], world.shape(step.object).radius)
             placed[step.target] += 1
             surface_z = TRAY_FLOOR
+        nudge = (nudges or {}).get(index, (0.0, 0.0))
+        target_xy = (target_xy[0] + nudge[0], target_xy[1] + nudge[1])
         controller.pick_place(
             step.object, target_xy, surface_z, pick_at=where(step.object) if belief else None
         )
@@ -363,6 +368,36 @@ def execute(
             )
         if on_step_done is not None:
             on_step_done(index, str(step))
+
+
+Advise = Callable[[Step, str], tuple[float, float]]
+
+REPAIRABLE = frozenset({"place_in", "stack_on", "place_near", "push"})
+
+
+def execute_with_repair(
+    program: TaskProgram,
+    world: SimWorld,
+    controller: PandaController,
+    regions: list[Region],
+    advise: Advise,
+    perceived: dict[str, XY] | None = None,
+    on_step_done: Callable[[int, str], None] | None = None,
+) -> list[StepCheck]:
+    """Run once; retry the first failed spatial step with an advised nudge."""
+    execute(program, world, controller, regions, perceived, on_step_done)
+    checks = verify(program, world, regions)
+    for step, check in zip(program.steps, checks, strict=True):
+        if check.ok or step.action not in REPAIRABLE:
+            continue
+        try:
+            dx, dy = advise(step, check.detail)
+        except ValueError:
+            continue  # unusable advice: report the miss, do not guess
+        single = TaskProgram(name=program.name, steps=[step])
+        execute(single, world, controller, regions, perceived, on_step_done, nudges={0: (dx, dy)})
+        return verify(program, world, regions)
+    return checks
 
 
 @dataclass(frozen=True, slots=True)

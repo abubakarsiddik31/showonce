@@ -8,6 +8,7 @@ and containers that are really on the table.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -170,3 +171,34 @@ def understand(client: MetaClient, video_id: str, steps: Sequence[Step]) -> str:
         log.warning("Could not narrate the clip: %s", exc)
         return describe_plan(steps)
     return text or describe_plan(steps)
+
+
+NUDGE_LIMIT = 0.05  # a repair is a fingertip fix, not a new plan
+
+
+def repair_advice(client: MetaClient, step: Step, detail: str) -> tuple[float, float]:
+    """Ask Muse where the object should have ended up, in meters.
+
+    Returns (dx, dy) added to the step's destination. Raises ValueError when
+    the answer is not two small numbers, and the caller skips repair.
+    """
+    answer = client.chat(
+        [step.object],
+        [] if step.target == step.object else [step.target],
+        [step],
+        [
+            (
+                "user",
+                f"Step '{step}' failed: {detail}. Reply with exactly two numbers: "
+                "dx dy in meters, each between -0.05 and 0.05, shifting where the "
+                "object should end up. Example: 0.02 -0.01",
+            )
+        ],
+    )
+    match = re.search(r"(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)", str(answer.get("text", "")))
+    if match is None:
+        raise ValueError(f"unusable repair advice: {answer!r}")
+    dx, dy = float(match.group(1)), float(match.group(2))
+    if abs(dx) > NUDGE_LIMIT or abs(dy) > NUDGE_LIMIT:
+        raise ValueError(f"repair nudge too large: {(dx, dy)}")
+    return (dx, dy)

@@ -8,7 +8,13 @@ from pathlib import Path
 
 import cv2
 
-from showonce.chat import clean_steps, describe_plan, drop_setting_down, understand
+from showonce.chat import (
+    clean_steps,
+    describe_plan,
+    drop_setting_down,
+    repair_advice,
+    understand,
+)
 from showonce.geometry import Calibration
 from showonce.learn import LearnError, compare_plans, learn_program
 from showonce.meta.client import MetaAPIError, MetaClient
@@ -18,9 +24,18 @@ from showonce.perception.profiles import encode_png, first_frame, profile_object
 from showonce.program import SEMANTIC_ACTIONS, Step, TaskProgram
 from showonce.scene_spec import ContainerSpec, SceneSpec
 from showonce.sim.controller import PandaController
-from showonce.sim.executor import Layout, Region, StepCheck, build_world, execute, verify
+from showonce.sim.executor import (
+    Layout,
+    Region,
+    StepCheck,
+    build_world,
+    execute,
+    execute_with_repair,
+    verify,
+)
 from showonce.sim.perceive import NotFoundError
 from showonce.sim.record import SimRecorder
+from showonce.unposed import unposed_layout
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +67,14 @@ def frame_size(video: Path) -> tuple[int, int]:
         return int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(
             capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
         )
+    finally:
+        capture.release()
+
+
+def video_fps(video: Path) -> float:
+    capture = cv2.VideoCapture(str(video))
+    try:
+        return float(capture.get(cv2.CAP_PROP_FPS) or 25.0)
     finally:
         capture.release()
 
@@ -143,6 +166,14 @@ def fit_profiles(
         if step.action == "cut"
         for name in (step.object, step.target)
     }
+    for step in program.steps:
+        # A cut target splits in two, and halves are boxes: model it as one.
+        # (Mirrors the open coercion above; the executor still refuses round
+        # targets for programs that did not come from a learned cut.)
+        if step.action == "cut":
+            target = fitted.get(step.target)
+            if target is not None and target.shape != "box":
+                fitted[step.target] = target.model_copy(update={"shape": "box"})
     return {name: fit_to_table(p) if name in cut else p for name, p in fitted.items()}
 
 
@@ -158,10 +189,25 @@ def learn_from_video(
     calibration = Calibration.for_frame(width, height)
     scene = scene.model_copy(update={"containers": resolve_containers(client, video, scene)})
     profiles = profile_objects(client, first_frame(video), scene, texture_dir)
-    obs = observe(client, video, scene.prompts)
+    try:
+        obs = observe(client, video, scene.prompts)
+    except Exception as exc:  # any tracking failure means no geometry
+        log.warning("SAM could not track %s: %s", video.name, exc)
+        obs = Observation(fps=video_fps(video), rests={}, moves=[])
     semantic = _read_with_muse_spark(client, video, scene)
     source = "geometry"
-    if semantic and any(s.action in SEMANTIC_ACTIONS for s in semantic):
+    unposed = not obs.rests and not obs.moves
+    if unposed:
+        # No trackable geometry (an angled close-up has no overhead mapping), so the
+        # reading decides and the objects start from a default arrangement.
+        if semantic is None:
+            raise LearnError(
+                f"SAM tracked nothing in {video.name} and Muse Spark did not answer"
+            )
+        program = TaskProgram(name=scene.name, steps=semantic)
+        problems = ["no trackable geometry; using Muse Spark's steps on a default layout"]
+        source = "muse_spark"
+    elif semantic and any(s.action in SEMANTIC_ACTIONS for s in semantic):
         # Where things ended up cannot show a wipe or a tear, so the video reading decides.
         program = TaskProgram(name=scene.name, steps=semantic)
         problems = ["geometry cannot see wiping or opening; using Muse Spark's steps"]
@@ -177,24 +223,52 @@ def learn_from_video(
             problems = ["geometry could not explain a move; using Muse Spark's steps"]
             source = "muse_spark"
     scene = scene.model_copy(update={"profiles": fit_profiles(profiles, program)})
-    objects = {
-        name: calibration.to_table(rests[0].center) for name, rests in obs.rests.items() if rests
-    }
-    layout = Layout(objects, regions_from_scene(scene, calibration), scene.profiles)
+    if unposed:
+        layout = unposed_layout(
+            program, scene.profiles, [c.name for c in scene.containers]
+        )
+    else:
+        objects = {
+            name: calibration.to_table(rests[0].center)
+            for name, rests in obs.rests.items()
+            if rests
+        }
+        layout = Layout(objects, regions_from_scene(scene, calibration), scene.profiles)
     understanding = _understand(client, video, program.steps)
     return Learned(program, layout, obs, source, semantic, problems, scene, understanding)
 
 
-def run_in_sim(program: TaskProgram, layout: Layout, record_to: Path | None = None) -> RunResult:
-    """Execute the program on a layout. Optionally record a video of the run."""
+def run_in_sim(
+    program: TaskProgram,
+    layout: Layout,
+    record_to: Path | None = None,
+    *,
+    repair: bool = False,
+    client: MetaClient | None = None,
+) -> RunResult:
+    """Execute the program on a layout. Optionally record a video of the run.
+
+    With ``repair`` and a client, the first failed spatial step gets one
+    Muse-advised retry before the checks are returned.
+    """
     world = build_world(layout, program)
     recorder = SimRecorder(world) if record_to else None
     controller = PandaController(world, on_step=recorder.capture if recorder else None)
     try:
-        execute(program, world, controller, layout.regions)
+        if repair and client is not None:
+            checks = execute_with_repair(
+                program,
+                world,
+                controller,
+                layout.regions,
+                lambda step, detail: repair_advice(client, step, detail),
+            )
+        else:
+            execute(program, world, controller, layout.regions)
+            checks = verify(program, world, layout.regions)
         if recorder and record_to:
             recorder.save(record_to)
     finally:
         if recorder:
             recorder.close()
-    return RunResult(verify(program, world, layout.regions))
+    return RunResult(checks)

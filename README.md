@@ -63,7 +63,7 @@ ShowOnce claims task-level imitation (what moved where, in what order). It does 
 
 ## Results
 
-Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM finding the objects in the simulator. These are AI-generated test clips, not real footage, and failures are kept in the table.
+Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM finding the objects in the simulator. All but `pexels_cut_carrots` are AI-generated test clips, not real footage, and failures are kept in the table.
 
 | Clip | Steps learned | Read by | Seed 3 | Seed 7 |
 |---|---|---|---|---|
@@ -72,10 +72,11 @@ Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM findin
 | toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
 | dishes_wash | 2 of 2 correct (wipe each plate) | Muse Spark (a wipe is not visible to tracking) | 2/2 steps, 28 of 28 stains | 2/2 steps, 28 of 28 stains |
 | cooking_prep | 3 of 3 correct (cut, pour, stir) | Muse Spark (cut, pour and stir are not visible to tracking) | 3/3 steps | 3/3 steps |
-| book_push_aside | not yet evaluated | — | not yet evaluated | not yet evaluated |
-| lamp_press | not yet evaluated | — | not yet evaluated | not yet evaluated |
+| book_push_aside | 1 of 1 correct | Muse Spark (a slide has no pick-and-place geometry) | 1/1 steps | not run |
+| lamp_press | 1 of 1 correct | Muse Spark (a press changes no resting position) | 1/1 steps | not run |
+| pexels_cut_carrots | 1 of 1 correct (cut) | Muse Spark (angled stock footage, default layout) | 1/1 steps | not run |
 
-SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds 2, 5 and 11. The two clips `book_push_aside` and `lamp_press` have scene files ready; their footage generates on demand and they have not been evaluated yet, so no scores are claimed for them.
+SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds 2, 5 and 11. The three newest clips (`book_push_aside`, `lamp_press`, `pexels_cut_carrots`) were verified headless on a single layout each; shuffled-seed replays are not run for them yet.
 
 ## Teach it your own clip
 
@@ -183,9 +184,7 @@ pnpm test && pnpm typecheck && pnpm lint
 
 ## Sample clips
 
-`samples/` holds six test clips of a tabletop task, each with a scene file naming the objects and containers: `toys_into_bin`, `dishes_into_rack` and `fruit_into_bowl` (30 s, put-and-place), `dishes_wash` (20 s, scrubbing two stained plates with a sponge), and `cooking_prep` (30 s, one cooking session: cut a dough bar, pour cereal into a bowl, stir it). They are AI-generated test footage (see `scripts/generate_videos.py`, a development tool that is not part of the product), not real recordings. Put real phone clips next to them with a scene file of the same shape.
-
-Two more scene files are ready, with footage that generates on demand (the mp4s are not generated yet): `book_push_aside` (push the green book behind the red block without lifting it) and `lamp_press` (press the orange push light so it clicks on).
+`samples/` holds eight test clips of a tabletop task, each with a scene file naming the objects and containers: `toys_into_bin`, `dishes_into_rack` and `fruit_into_bowl` (30 s, put-and-place), `dishes_wash` (20 s, scrubbing two stained plates with a sponge), `cooking_prep` (30 s, one cooking session: cut a dough bar, pour cereal into a bowl, stir it), `book_push_aside` (push the green book without lifting it) and `lamp_press` (press the orange push light so it clicks on). All but one are AI-generated test footage (see `scripts/generate_videos.py`, a development tool that is not part of the product), not real recordings: `pexels_cut_carrots` is real stock footage of carrot slicing, shot as an angled close-up, and runs in unposed mode on a default layout. Put real phone clips next to them with a scene file of the same shape.
 
 Eight synthetic clips with pixel-level ground truth, used for the move-detection eval, are rebuilt locally with `uv run showonce synth` (written to the git-ignored `samples/synthetic/`).
 
