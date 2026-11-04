@@ -114,6 +114,6 @@ def test_lists_the_finished_demo_pairs(tmp_path: Path) -> None:
     (body,) = TestClient(app).get("/api/demos").json()
     assert body["id"] == "pexels_sugar_mix"
     assert body["realFootage"] is True
-    assert body["steps"] == ["sugar bowl: pour mixing bowl"]
+    assert body["steps"] == ["pour sugar bowl into mixing bowl"]
     assert body["humanUrl"] == "/media/demos/pexels_sugar_mix/human.mp4"
     assert body["shuffledUrl"] is None

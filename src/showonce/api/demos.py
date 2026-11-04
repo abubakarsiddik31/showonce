@@ -20,10 +20,23 @@ ORDER = [
 TITLES = {"tidy_table": "Tidy a scattered table"}
 
 
+PHRASES = {
+    "place_in": "put {o} in {t}",
+    "stack_on": "stack {o} on {t}",
+    "place_near": "put {o} next to {t}",
+    "push": "push {o}",
+    "wipe": "wipe {t} with {o}",
+    "open": "open {o}",
+    "pour": "pour {o} into {t}",
+    "stir": "stir {t} with {o}",
+    "cut": "cut {t} with {o}",
+    "press": "press {o}",
+}
+
+
 def _words(step: dict[str, str | None]) -> str:
-    verb = str(step["action"]).replace("_", " ")
-    target = step.get("target")
-    return f"{step['object']}: {verb}" + (f" {target}" if target else "")
+    phrase = PHRASES.get(str(step["action"]), "{o}")
+    return phrase.format(o=step["object"], t=step.get("target") or "")
 
 
 def _title(name: str, samples_dir: Path) -> str:

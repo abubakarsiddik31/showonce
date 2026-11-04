@@ -18,7 +18,7 @@ const urlFor = (demo: Demo, view: View) =>
 /** The finished pairs: the clip it watched, the arm repeating it, and the same task on a new layout. */
 export function DemoShowcase({ demos }: { demos: Demo[] | undefined }) {
   const [picked, setPicked] = useState<string | null>(null)
-  const [view, setView] = useState<View>('robot')
+  const [view, setView] = useState<View>('human')
 
   if (!demos) {
     return (
@@ -31,6 +31,8 @@ export function DemoShowcase({ demos }: { demos: Demo[] | undefined }) {
 
   const demo = demos.find((d) => d.id === picked) ?? demos[0]
   const shown = urlFor(demo, view) ? view : 'robot'
+  const order = VIEWS.map(([v]) => v).filter((v) => urlFor(demo, v))
+  const next = order[order.indexOf(shown) + 1]
   const src = urlFor(demo, shown) ?? demo.robotUrl
 
   return (
@@ -50,7 +52,8 @@ export function DemoShowcase({ demos }: { demos: Demo[] | undefined }) {
               src={src}
               autoPlay
               muted
-              loop
+              loop={!next}
+              onEnded={() => next && setView(next)}
               playsInline
               controls
               aria-label={`${demo.title}: ${VIEWS.find(([v]) => v === shown)?.[1]}`}
@@ -78,7 +81,7 @@ export function DemoShowcase({ demos }: { demos: Demo[] | undefined }) {
           </div>
           {demo.steps.length > 0 && (
             <p className="font-mono text-xs leading-relaxed text-ink-faint">
-              Learned: {demo.steps.join(' → ')}
+              What it learned: {demo.steps.join(', then ')}
             </p>
           )}
         </div>
@@ -88,7 +91,10 @@ export function DemoShowcase({ demos }: { demos: Demo[] | undefined }) {
             <li key={d.id}>
               <button
                 type="button"
-                onClick={() => setPicked(d.id)}
+                onClick={() => {
+                  setPicked(d.id)
+                  setView(d.humanUrl ? 'human' : 'robot')
+                }}
                 aria-pressed={d.id === demo.id}
                 className={cn(
                   'flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors',

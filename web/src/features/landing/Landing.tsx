@@ -11,6 +11,7 @@ import { DemoShowcase } from './DemoShowcase'
 import { Hero } from './Hero'
 import { HowItWorks } from './HowItWorks'
 import { Proof } from './Proof'
+import { Story } from './Story'
 
 const jump = (id: string) =>
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -62,6 +63,7 @@ export function Landing({ go }: { go: (href: string) => void }) {
 
         <main className="flex-1">
           <Hero onStart={start} onHow={() => jump('how')} />
+          <Story />
           <DemoShowcase demos={demos.data} />
           <HowItWorks />
           <Capabilities />
