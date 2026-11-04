@@ -6,9 +6,15 @@
 
 **Film a tabletop task once. The robot watches, asks if it is unsure, then does it on a shuffled table.**
 
-<a href="demos/pexels_fruit_basket/robot.mp4"><img src="demos/hero.gif" width="720" alt="Left: a real clip of fruit going into a basket. Right: the robot arm doing the same job in simulation." /></a>
+<table>
+<tr>
+<td align="center"><a href="demos/pexels_fruit_basket/robot.mp4"><img src="demos/hero_fruit.gif" width="400" alt="A real clip of fruit going into a basket, and the robot arm doing the same job." /></a><br /><sub><b>Fruit into a basket</b>: the clip, then the arm</sub></td>
+<td align="center"><a href="demos/pexels_cut_carrots/robot.mp4"><img src="demos/hero_carrot.gif" width="400" alt="A real clip of a carrot being sliced, and the robot arm chopping a carrot into slices." /></a><br /><sub><b>Chop a carrot</b>: the clip, then the arm</sub></td>
+<td align="center"><a href="web/public/robot-demo.mp4"><img src="demos/hero_plates.gif" width="400" alt="The robot arm scrubbing a stained plate in simulation." /></a><br /><sub><b>Clean a plate</b>: the arm scrubbing, in circles</sub></td>
+</tr>
+</table>
 
-<sub>Left: the clip ShowOnce watched (real stock footage). Right: the arm doing the same job, sped up. <a href="#see-it-work">All demos</a></sub>
+<sub>Left and middle: real stock footage on the left of each pair, the robot on the right (sped up). <a href="#see-it-work">All demos</a></sub>
 
 [![Hackathon](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-2026-blue)](https://dev.meta.ai/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)](pyproject.toml)
