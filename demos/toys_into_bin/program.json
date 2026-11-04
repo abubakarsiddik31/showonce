@@ -1,0 +1,23 @@
+{
+  "name": "toys_into_bin",
+  "steps": [
+    {
+      "object": "red block",
+      "action": "place_in",
+      "target": "box",
+      "relation": null
+    },
+    {
+      "object": "green block",
+      "action": "place_in",
+      "target": "box",
+      "relation": null
+    },
+    {
+      "object": "blue block",
+      "action": "place_in",
+      "target": "box",
+      "relation": null
+    }
+  ]
+}

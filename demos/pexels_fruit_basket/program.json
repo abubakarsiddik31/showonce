@@ -1,0 +1,11 @@
+{
+  "name": "pexels_fruit_basket",
+  "steps": [
+    {
+      "object": "lemon",
+      "action": "place_in",
+      "target": "basket",
+      "relation": null
+    }
+  ]
+}

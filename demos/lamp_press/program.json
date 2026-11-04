@@ -1,0 +1,11 @@
+{
+  "name": "lamp_press",
+  "steps": [
+    {
+      "object": "orange lamp",
+      "action": "press",
+      "target": "orange lamp",
+      "relation": null
+    }
+  ]
+}

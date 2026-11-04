@@ -1,0 +1,23 @@
+{
+  "name": "dishes_into_rack",
+  "steps": [
+    {
+      "object": "red mug",
+      "action": "place_in",
+      "target": "tray",
+      "relation": null
+    },
+    {
+      "object": "blue mug",
+      "action": "place_in",
+      "target": "tray",
+      "relation": null
+    },
+    {
+      "object": "green mug",
+      "action": "place_in",
+      "target": "tray",
+      "relation": null
+    }
+  ]
+}

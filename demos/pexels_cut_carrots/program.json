@@ -1,0 +1,11 @@
+{
+  "name": "pexels_cut_carrots",
+  "steps": [
+    {
+      "object": "steel knife",
+      "action": "cut",
+      "target": "carrot",
+      "relation": null
+    }
+  ]
+}

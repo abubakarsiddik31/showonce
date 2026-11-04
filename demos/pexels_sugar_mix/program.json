@@ -1,0 +1,17 @@
+{
+  "name": "pexels_sugar_mix",
+  "steps": [
+    {
+      "object": "sugar bowl",
+      "action": "pour",
+      "target": "mixing bowl",
+      "relation": null
+    },
+    {
+      "object": "silver spoon",
+      "action": "stir",
+      "target": "mixing bowl",
+      "relation": null
+    }
+  ]
+}
