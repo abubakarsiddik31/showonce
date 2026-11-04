@@ -6,6 +6,10 @@
 
 **Film a tabletop task once. The robot watches, asks if it is unsure, then does it on a shuffled table.**
 
+<a href="demos/pexels_fruit_basket/robot.mp4"><img src="demos/hero.gif" width="720" alt="Left: a real clip of fruit going into a basket. Right: the robot arm doing the same job in simulation." /></a>
+
+<sub>Left: the clip ShowOnce watched (real stock footage). Right: the arm doing the same job, sped up. <a href="#see-it-work">All demos</a></sub>
+
 [![Hackathon](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-2026-blue)](https://dev.meta.ai/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)](pyproject.toml)
 [![Simulator](https://img.shields.io/badge/simulator-MuJoCo-orange)](https://mujoco.org/)
