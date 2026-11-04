@@ -24,8 +24,8 @@ class SimRecorder:
         self.frames: list[Image] = []
         self.closed = False
         self.camera = mujoco.MjvCamera()
-        self.camera.lookat[:] = [0.42, -0.02, 0.36]
-        self.camera.distance = 1.6
+        self.camera.lookat[:] = [0.38, 0.0, 0.40]
+        self.camera.distance = 1.4
         self.camera.azimuth = 142
         self.camera.elevation = -30
 
