@@ -228,6 +228,19 @@ def pour(
     controller.release(source, source_at + np.array([0.0, 0.0, 0.002]))
 
 
+def stir_path(centre: XY, radius: float, laps: int = 2) -> list[XY]:
+    """Circles round the bowl at a steady radius, a few laps, then back to the middle."""
+    points = 10
+    path: list[XY] = []
+    for lap in range(laps):
+        r = radius * (0.75 + 0.25 * (lap % 2))  # a little wider on every second lap
+        for i in range(points + 1):
+            a = 2 * math.pi * i / points + lap * 0.4
+            path.append((centre[0] + r * math.cos(a), centre[1] + r * math.sin(a)))
+    path.append(centre)
+    return path
+
+
 def stir(
     world: SimWorld,
     controller: PandaController,
@@ -237,18 +250,26 @@ def stir(
     centre: XY,
     half: XY,
 ) -> None:
-    """Swirl the spoon through the bowl's contents, inside the rim, and put it back."""
+    """Swirl the spoon round the bowl, inside the rim, until the contents blend; put it back."""
     hx, hy, hz = world.shape(tool).half
     z = TRAY_FLOOR + hz + CLEARANCE  # the tool rides just above the bowl's floor
-    radius = max(0.01, min(half) - min(hx, hy) - 0.005)
-    path = circle_path(centre, radius, (hx, hy))
+    radius = max(0.01, min(half) - max(hx, hy) - 0.006)
+    path = stir_path(centre, radius)
+    done = 0
+
+    def mixing() -> None:
+        nonlocal done
+        done += 1
+        if world.contents_of(target_name) is not None:
+            world.blend(target_name, done / len(path))
 
     controller.grasp(tool, tool_at)
     start = path[0]
     controller.move_to(np.array([start[0], start[1], z + 0.06]))
     controller.move_to(np.array([start[0], start[1], z]))
-    controller.sweep(path[1:], z)
+    controller.sweep(path[1:], z, mixing)
     world.stir(target_name)
+    world.blend(target_name, 1.0)
     controller.release(tool, tool_at + np.array([0.0, 0.0, 0.002]))
 
 
@@ -271,6 +292,49 @@ def cut(
     controller.move_to(np.array([centre[0], centre[1] - y, z]))
     controller.move_to(np.array([centre[0], centre[1] + y, z]))  # one pass, edge to edge
     world.split(target)
+    controller.release(knife, knife_at + np.array([0.0, 0.0, 0.002]))
+
+
+def slice_log(
+    world: SimWorld,
+    controller: PandaController,
+    knife: str,
+    knife_at: Vec,
+    target: str,
+    centre: XY,
+) -> None:
+    """Chop a carrot into discs from one end, a stroke at a time, as a hand does.
+
+    The blade lies across the carrot. Each stroke comes down just past the next cut line, a slice
+    drops flat onto a growing pile beside the carrot, and the blade finishes its stroke through
+    the gap. The last stub is the last slice.
+    """
+    pieces = world.halves_of(target)
+    hz = world.shape(knife).half[2]
+    blade = world.shape(knife).half[1]
+    radius = world.shape(target).half[0]
+    thickness = 2 * world.shape(pieces[0]).half[2]
+    side = 1.0 if centre[0] <= 0.5 else -1.0  # the pile goes toward the side with more room
+    gap = 2 * radius * 1.15
+
+    def pile_spot(i: int) -> XY:
+        row, col = divmod(i, 4)
+        return (
+            centre[0] + side * (radius + 0.05 + row * gap),
+            centre[1] + (col - 1.5) * gap + (0.012 if row % 2 else 0.0),
+        )
+
+    top = 2 * radius
+    controller.grasp(knife, knife_at)
+    for i in range(len(pieces) - 1):
+        cut_y = world.log_ends(target)[0] - thickness
+        y = cut_y + blade + 0.002
+        controller.move_to(np.array([centre[0], y, top + hz + 0.07]))
+        controller.move_to(np.array([centre[0], y, top + hz + 0.004]))
+        world.chop(target, i, pile_spot(i))
+        controller.move_to(np.array([centre[0], y, hz + 0.003]))  # the blade drops through the gap
+        controller.move_to(np.array([centre[0], y, top + hz + 0.07]))
+    world.finish_slicing(target, pile_spot(len(pieces) - 1))
     controller.release(knife, knife_at + np.array([0.0, 0.0, 0.002]))
 
 

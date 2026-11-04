@@ -13,7 +13,16 @@ from showonce.objects import MAX_GRASP_WIDTH, ObjectProfile
 from showonce.program import Step, TaskProgram
 from showonce.sim.controller import PandaController
 from showonce.sim.scene import RIM_THICKNESS, TRAY_FLOOR, SimWorld, ZoneDef, block_def
-from showonce.sim.skills import cut, free_spot, open_package, pour, press, stir, wipe
+from showonce.sim.skills import (
+    cut,
+    free_spot,
+    open_package,
+    pour,
+    press,
+    slice_log,
+    stir,
+    wipe,
+)
 
 SLOT_MARGIN = 0.004  # clearance between a placed object and the rim
 # Where objects go in a container, as fractions of the free half-width: corners, then center.
@@ -80,10 +89,21 @@ def _half_profiles(layout: Layout, program: TaskProgram | None) -> dict[str, Obj
     if not program:
         return halves
     for step in program.steps:
-        if step.action != "cut" or f"{step.target} half a" in halves:
+        if step.action != "cut" or any(k.startswith(f"{step.target} ") for k in halves):
             continue
         parent = layout.profiles.get(step.target)
         if parent is None:
+            continue
+        if parent.shape == "log" and parent.slices > 1:
+            radius, thickness = parent.width / 2, parent.depth / parent.slices
+            for i in range(1, parent.slices + 1):
+                halves[f"{step.target} slice {i}"] = ObjectProfile(
+                    shape="cylinder",
+                    width=2 * radius,
+                    depth=2 * radius,
+                    height=thickness,
+                    rgb=parent.rgb,
+                )
             continue
         for suffix in ("a", "b"):
             halves[f"{step.target} half {suffix}"] = parent.model_copy(
@@ -326,10 +346,22 @@ def execute(
         if step.action == "cut":
             if step.target not in world.block_names:
                 raise ExecutionError(f"Unknown cut target '{step.target}' in step: {step}")
-            if world.shape(step.target).kind != "box":
+            if world.shape(step.target).kind not in ("box", "log"):
                 raise ExecutionError(f"Cannot cut '{step.target}': it is round")
             target_at = where(step.target)
             hx, hy, _ = world.shape(step.target).half
+            if world.shape(step.target).kind == "log":
+                slice_log(
+                    world,
+                    controller,
+                    step.object,
+                    where(step.object),
+                    step.target,
+                    (float(target_at[0]), float(target_at[1])),
+                )
+                if on_step_done is not None:
+                    on_step_done(index, str(step))
+                continue
             cut(
                 world,
                 controller,
@@ -462,7 +494,9 @@ def verify(program: TaskProgram, world: SimWorld, regions: list[Region]) -> list
             checks.append(StepCheck(str(step), bool(ok), "mixed" if ok else "not mixed"))
         elif step.action == "cut":
             ok = world.is_split(step.target)
-            checks.append(StepCheck(str(step), bool(ok), "in two halves" if ok else "still whole"))
+            pieces = len(world.halves_of(step.target)) if step.target in world.block_names else 2
+            word = "in two halves" if pieces == 2 else f"in {pieces} slices"
+            checks.append(StepCheck(str(step), bool(ok), word if ok else "still whole"))
         elif step.action == "press":
             ok = world.is_pressed(step.object)
             checks.append(StepCheck(str(step), bool(ok), "pressed" if ok else "unpressed"))

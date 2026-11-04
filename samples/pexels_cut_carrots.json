@@ -1,8 +1,47 @@
 {
   "name": "pexels_cut_carrots",
-  "notes": "Pexels stock footage (angled close-up, two hands). Unposed: layout is a default arrangement.",
-  "size": [1920, 1080],
-  "prompts": {"steel knife": "large kitchen knife", "carrot": "orange carrot"},
+  "notes": "Pexels stock footage (angled close-up, two hands). Unposed: layout is a default arrangement. The carrot is profiled by hand as a lying log of ten slices, which the robot chops from one end like the hand does.",
+  "size": [
+    1920,
+    1080
+  ],
+  "prompts": {
+    "steel knife": "large kitchen knife",
+    "carrot": "orange carrot"
+  },
   "container_prompts": {},
-  "steps": [{"object": "steel knife", "action": "cut", "target": "carrot"}]
+  "steps": [
+    {
+      "object": "steel knife",
+      "action": "cut",
+      "target": "carrot"
+    }
+  ],
+  "title": "Chop a carrot",
+  "group": "Chores",
+  "profiles": {
+    "steel knife": {
+      "shape": "box",
+      "width": 0.07,
+      "depth": 0.012,
+      "height": 0.02,
+      "rgb": [
+        0.72,
+        0.74,
+        0.78
+      ]
+    },
+    "carrot": {
+      "shape": "log",
+      "width": 0.04,
+      "depth": 0.13,
+      "height": 0.04,
+      "slices": 10,
+      "rgb": [
+        0.96,
+        0.58,
+        0.15
+      ]
+    }
+  }
 }

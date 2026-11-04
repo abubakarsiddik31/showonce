@@ -172,7 +172,7 @@ def fit_profiles(
         # targets for programs that did not come from a learned cut.)
         if step.action == "cut":
             target = fitted.get(step.target)
-            if target is not None and target.shape != "box":
+            if target is not None and target.shape not in ("box", "log"):
                 fitted[step.target] = target.model_copy(update={"shape": "box"})
     return {name: fit_to_table(p) if name in cut else p for name, p in fitted.items()}
 
@@ -201,9 +201,7 @@ def learn_from_video(
         # No trackable geometry (an angled close-up has no overhead mapping), so the
         # reading decides and the objects start from a default arrangement.
         if semantic is None:
-            raise LearnError(
-                f"SAM tracked nothing in {video.name} and Muse Spark did not answer"
-            )
+            raise LearnError(f"SAM tracked nothing in {video.name} and Muse Spark did not answer")
         program = TaskProgram(name=scene.name, steps=semantic)
         problems = ["no trackable geometry; using Muse Spark's steps on a default layout"]
         source = "muse_spark"
@@ -229,9 +227,7 @@ def learn_from_video(
             source = "muse_spark"
     scene = scene.model_copy(update={"profiles": fit_profiles(profiles, program)})
     if unposed:
-        layout = unposed_layout(
-            program, scene.profiles, [c.name for c in scene.containers]
-        )
+        layout = unposed_layout(program, scene.profiles, [c.name for c in scene.containers])
     else:
         objects = {
             name: calibration.to_table(rests[0].center)
@@ -272,6 +268,8 @@ def run_in_sim(
             execute(program, world, controller, layout.regions)
             checks = verify(program, world, layout.regions)
         if recorder and record_to:
+            controller.park()  # step away, so the finished table can be seen
+            controller.dwell(150)
             recorder.save(record_to)
     finally:
         if recorder:

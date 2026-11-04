@@ -72,10 +72,10 @@ def perceive_blocks(
         raise RuntimeError("Could not encode the camera frame")
     png = encoded.tobytes()
 
-    def locate(name: str) -> tuple[str, XY]:
+    def candidates(name: str) -> list[Detection]:
+        """Every detection of this object's colour, best first, for the first phrase that works."""
         expected = world.color(name)
         rivals = [world.color(n) for n in prompts if n != name]
-        best: Detection | None = None
         for phrase in prompts[name]:  # SAM is picky about wording, so try each in turn
             # A loose phrase can match another object too, so drop a match that is mostly
             # some other object's colour. One that is clearly this object's colour stays: a
@@ -87,15 +87,31 @@ def perceive_blocks(
                 or own >= max((_share(image, d, r) for r in rivals), default=0)
             ]
             if scored:
-                share, best = max(scored, key=lambda item: (item[0] >= MIN_SHARE, item[1].box.area))
-                if share >= MIN_SHARE:
-                    break
-        if best is None:
-            raise NotFoundError(f"SAM found no '{prompts[name][0]}' for {name}")
+                scored.sort(key=lambda item: (item[0] >= MIN_SHARE, item[1].box.area), reverse=True)
+                if scored[0][0] >= MIN_SHARE:
+                    return [d for _, d in scored]
+        return []
+
+    def position(name: str, found: Detection) -> XY:
         shape = world.shape(name)
-        table_xy = calibration.to_table(best.box.center)
+        table_xy = calibration.to_table(found.box.center)
         table_xy = (table_xy[0] - shape.bbox_offset[0], table_xy[1] - shape.bbox_offset[1])
-        return name, _correct_parallax(table_xy, shape.half_height * 1.5)
+        return _correct_parallax(table_xy, shape.half_height * 1.5)
+
+    # Objects that look alike (three lemons) share one search; each takes a different detection.
+    # Which lemon is which does not matter, so the largest detections go out in name order.
+    groups: dict[tuple[str, ...], list[str]] = {}
+    for name in prompts:
+        groups.setdefault(tuple(prompts[name]), []).append(name)
+
+    def locate_group(names: list[str]) -> list[tuple[str, XY]]:
+        found = candidates(names[0])
+        if len(found) < len(names):
+            raise NotFoundError(
+                f"SAM found {len(found)} '{prompts[names[0]][0]}', needed {len(names)}"
+            )
+        return [(n, position(n, d)) for n, d in zip(names, found, strict=False)]
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return dict(pool.map(locate, prompts))
+        located = pool.map(locate_group, groups.values())
+    return {name: xy for group in located for name, xy in group}

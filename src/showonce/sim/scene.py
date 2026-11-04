@@ -27,6 +27,8 @@ DIRT_SPOTS = 14
 DIRT_RADIUS = 0.012
 PARK_Z = -0.4  # where cut-away bodies wait, each at its own depth below this
 CONTENTS_RGBA = (0.55, 0.42, 0.2, 1.0)  # dry cereal-brown: contents are an abstraction, not a fluid
+POURED_RGB = (0.93, 0.9, 0.8)  # what has just been poured in: pale, unmixed
+MIXED_RGB = (0.9, 0.7, 0.28)  # what a stir blends it into
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
 CAMERA_NAME = "top"
 CAMERA_HEIGHT = 0.9
@@ -74,6 +76,17 @@ def shape_of(profile: ObjectProfile) -> Shape:
     half = (profile.width / 2, profile.depth / 2, profile.height / 2)
     handle = 0.5 * half[0] if profile.handle else 0.0
     return Shape(profile.shape, half, handle, profile.openable, profile.pressable)
+
+
+def piece_names(name: str, known: Collection[str]) -> tuple[str, ...]:
+    """The bodies a cut replaces ``name`` with: two halves, or numbered slices of a log."""
+    halves = (f"{name} half a", f"{name} half b")
+    if all(h in known for h in halves):
+        return halves
+    slices: list[str] = []
+    while f"{name} slice {len(slices) + 1}" in known:
+        slices.append(f"{name} slice {len(slices) + 1}")
+    return tuple(slices)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,10 +170,9 @@ class SimWorld:
             self.model.geom_rgba[self._content_geoms[name], 3] = 0.0  # empty until poured into
         names = set(self.block_names)
         self._halves = {
-            b.name: (f"{b.name} half a", f"{b.name} half b")
-            for b in blocks
-            if f"{b.name} half a" in names and f"{b.name} half b" in names
+            b.name: piece_names(b.name, names) for b in blocks if piece_names(b.name, names)
         }
+        self._log_len = {b.name: 2 * b.shape.half[1] for b in blocks if b.shape.kind == "log"}
         self._pressed: set[str] = set()
         for body_id in range(1, self.model.nbody):
             self.model.body_gravcomp[body_id] = 0.0 if body_id in free else 1.0
@@ -249,9 +261,10 @@ class SimWorld:
                 )
                 eq.active = False
         index = {b.name: i for i, b in enumerate(blocks)}
+        known = set(index)
         for block in blocks:
-            if f"{block.name} half a" in index:
-                for half in (f"{block.name} half a", f"{block.name} half b"):
+            if piece_names(block.name, known):
+                for half in piece_names(block.name, known):
                     body = spec.body(half)
                     body.pos = [0.0, 0.0, PARK_Z - 0.05 * index[half]]  # one depth each
                     # Set before compiling: MuJoCo skips gravity compensation altogether if no
@@ -308,16 +321,49 @@ class SimWorld:
         if shape.openable:
             SimWorld._add_packet_body(body, block, physics)
             return
+        if shape.kind == "log":
+            SimWorld._add_log_geoms(body, block, physics)
+            return
         kind, size = {
             "box": (mujoco.mjtGeom.mjGEOM_BOX, [hx, hy, hz]),
             "cylinder": (mujoco.mjtGeom.mjGEOM_CYLINDER, [hx, hz, 0]),
             "sphere": (mujoco.mjtGeom.mjGEOM_SPHERE, [hx, 0, 0]),
-        }[shape.kind]
+        }[shape.kind]  # type: ignore[index]
         if shape.kind == "sphere":  # rolling friction, so a released ball settles
             physics |= {"condim": 6, "friction": [1.2, 0.01, 0.01]}
         body.add_geom(name=f"{block.name}_geom", type=kind, size=size, rgba=rgba, **physics)
         if shape.handle > 0:
             SimWorld._add_handle(body, block)
+
+    @staticmethod
+    def _add_log_geoms(
+        body: mujoco.MjsBody, block: BlockDef, physics: Mapping[str, object]
+    ) -> None:
+        """A carrot lying along y: a drawn cylinder, and a flat-bottomed box that does the touching.
+
+        A bare cylinder on its side rolls away at the first brush, so the collider is a box
+        that stays inside the drawn shape's silhouette and sits flat on the table.
+        """
+        hx, hy, _ = block.shape.half
+        side = [math.sqrt(0.5), math.sqrt(0.5), 0.0, 0.0]  # a quarter turn about x: axis z -> y
+        body.add_geom(
+            name=f"{block.name}_look",
+            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+            size=[hx, hy, 0],
+            quat=side,
+            rgba=list(block.rgba),
+            contype=0,
+            conaffinity=0,
+            mass=0.0001,
+        )
+        body.add_geom(
+            name=f"{block.name}_geom",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            pos=[0.0, 0.0, -0.3 * hx],
+            size=[0.7 * hx, hy, 0.7 * hx],
+            rgba=[0.0, 0.0, 0.0, 0.0],
+            **physics,
+        )
 
     @staticmethod
     def _add_picture(spec: mujoco.MjSpec, body: mujoco.MjsBody, block: BlockDef) -> None:
@@ -512,7 +558,7 @@ class SimWorld:
         dx, dy = np.abs(self.lid_pos(name)[:2] - self.block_pos(name)[:2])
         return bool(dx > hx + 0.01 or dy > hy + STRIP_TAIL + 0.03)
 
-    def halves_of(self, name: str) -> tuple[str, str]:
+    def halves_of(self, name: str) -> tuple[str, ...]:
         """The two bodies a cut replaces ``name`` with."""
         return self._halves[name]
 
@@ -534,6 +580,34 @@ class SimWorld:
         gone = self.block_pos(name)[2] < 0.0
         on_table = all(self.block_pos(h)[2] > 0.0 for h in self._halves[name])
         return gone and on_table
+
+    def log_ends(self, name: str) -> tuple[float, float]:
+        """World y of a log's two ends: (the +y end, the -y end)."""
+        y, length = float(self.block_pos(name)[1]), self._log_len[name]
+        return y + length / 2, y - length / 2
+
+    def chop(self, name: str, index: int, drop: tuple[float, float]) -> None:
+        """Take one slice off the +y end of a log and let it fall flat at ``drop``."""
+        slice_name = self._halves[name][index]
+        thickness = 2 * self._shapes[slice_name].half[2]
+        self._log_len[name] -= thickness
+        length = self._log_len[name]
+        pos = self.block_pos(name)
+        for geom in (f"{name}_look", f"{name}_geom"):
+            geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom)
+            self.model.geom_size[geom_id, 1] = length / 2
+        self.set_block(name, (float(pos[0]), float(pos[1]) - thickness / 2))
+        self._release_piece(slice_name, drop, self._shapes[slice_name].half[2] + 0.03)
+
+    def finish_slicing(self, name: str, drop: tuple[float, float]) -> None:
+        """The last stub of the log becomes the last slice."""
+        last = self._halves[name][-1]
+        self._release_piece(last, drop, self._shapes[last].half[2] + 0.03)
+        self._park(name)
+
+    def _release_piece(self, piece: str, xy: tuple[float, float], z: float) -> None:
+        self.set_block(piece, xy, z)
+        self.model.body_gravcomp[self.model.body(piece).id] = 0.0  # a real object again
 
     def press(self, name: str) -> None:
         """Press a pressable object: it latches down and darkens."""
@@ -580,13 +654,19 @@ class SimWorld:
         self._contents[source] = None
         self._contents[target] = "poured"
         self.model.geom_rgba[self._content_geoms[source], 3] = 0.0
-        self.model.geom_rgba[self._content_geoms[target], 3] = 1.0
+        self.model.geom_rgba[self._content_geoms[target]] = [*POURED_RGB, 1.0]
 
     def contents_of(self, name: str) -> str | None:
         return self._contents.get(name)
 
     def stir(self, name: str) -> None:
         self._mixed.add(name)
+
+    def blend(self, name: str, fraction: float) -> None:
+        """Show the contents part-way mixed: ``fraction`` 0 is as poured, 1 is fully blended."""
+        mix = np.clip(fraction, 0.0, 1.0)
+        rgb = (1 - mix) * np.array(POURED_RGB) + mix * np.array(MIXED_RGB)
+        self.model.geom_rgba[self._content_geoms[name], :3] = rgb
 
     def is_mixed(self, name: str) -> bool:
         return name in self._mixed

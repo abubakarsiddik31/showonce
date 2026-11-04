@@ -225,6 +225,8 @@ def replay(
                 program, world, controller, regions, look, list(truth), on_step_done=None
             )
         if recorder and record_to:
+            controller.park()  # step away, so the finished table can be seen
+            controller.dwell(150)
             recorder.save(record_to)
         return ReplayResult(verify(program, world, regions), errors, step_frames, fixes)
     finally:

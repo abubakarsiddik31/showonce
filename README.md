@@ -32,6 +32,8 @@ Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`),
 
 All six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth.
 
+For how it works inside (stages, models, simulator, verification, limits) see [TECHNICAL.md](TECHNICAL.md).
+
 ## Contents
 
 - [See it work](#see-it-work)

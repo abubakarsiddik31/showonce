@@ -263,3 +263,30 @@ def test_a_knife_and_the_thing_it_cuts_are_shortened_to_fit_the_table() -> None:
     assert max(fitted["bar"].width, fitted["bar"].depth) <= 0.11
     assert fitted["bar"].width / fitted["bar"].depth == pytest.approx(0.11 / 0.15)
     assert fitted["book"].width == 0.2  # not part of the cut: keeps its size
+
+
+CARROT = ObjectProfile(shape="log", width=0.04, depth=0.13, height=0.04, slices=10)
+KNIFE = ObjectProfile(shape="box", width=0.06, depth=0.012, height=0.02)
+
+
+@needs_panda
+def test_a_carrot_is_chopped_into_the_slices_it_was_given() -> None:
+    layout = Layout(
+        {"knife": (0.4, -0.15), "carrot": (0.45, 0.08)}, [], {"knife": KNIFE, "carrot": CARROT}
+    )
+    program = TaskProgram(name="t", steps=[Step(object="knife", action="cut", target="carrot")])
+    world = build_world(layout, program)
+    assert len(world.halves_of("carrot")) == 10
+    execute(program, world, PandaController(world), [])
+    world.step(300)
+    [check] = verify(program, world, [])
+    assert check.ok and "10 slices" in check.detail
+    slices = [world.block_pos(s) for s in world.halves_of("carrot")]
+    assert all(0.0 < p[2] < 0.03 for p in slices)  # lying flat on the table
+    assert len({(round(p[0], 3), round(p[1], 3)) for p in slices}) == 10  # none on top of another
+
+
+def test_a_lying_carrot_survives_fitting_to_the_table() -> None:
+    program = TaskProgram(name="t", steps=[Step(object="knife", action="cut", target="carrot")])
+    fitted = fit_profiles({"knife": KNIFE, "carrot": CARROT}, program)
+    assert fitted["carrot"].shape == "log" and fitted["carrot"].slices == 10

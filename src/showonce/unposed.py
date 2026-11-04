@@ -29,7 +29,6 @@ def unposed_layout(
     objects = {s.object for s in program.steps}
     objects |= {s.target for s in program.steps if s.target not in containers}
     regions = [
-        Region(name, (ZONE_X, -0.12 + 0.24 * i), ZONE_SIZE)
-        for i, name in enumerate(containers)
+        Region(name, (ZONE_X, -0.12 + 0.24 * i), ZONE_SIZE) for i, name in enumerate(containers)
     ]
     return Layout(shuffled_layout(sorted(objects), regions, seed, profiles), regions, profiles)

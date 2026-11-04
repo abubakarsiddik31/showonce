@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-ShapeKind = Literal["box", "cylinder", "sphere"]
+ShapeKind = Literal["box", "cylinder", "sphere", "log"]
 RGB = tuple[float, float, float]
 
 # The sim gripper opens 8 cm, so nothing wider than this can be held.
@@ -50,6 +50,9 @@ class ObjectProfile(BaseModel):
     handle: bool = False  # a handle sticking out sideways, as on a mug
     openable: bool = False  # a sealed bag, packet or box: a lid you pull off to get inside
     pressable: bool = False  # a button, pump or push-light: press it straight down
+    slices: int = (
+        0  # a "log" (carrot, cucumber) lying along y that a knife cuts into this many discs
+    )
     rgb: RGB | None = None  # colour sampled from the clip, used when the name has no colour word
     texture: str | None = None  # a picture of the object cut from the clip, seen from above
 
@@ -158,7 +161,9 @@ def sim_prompts(name: str, profile: ObjectProfile) -> list[str]:
     elif profile.shape == "cylinder" and profile.height < 0.4 * profile.width:
         phrases = [f"{word} plate", f"{word} circle", f"{word} round object", "round plate"]
     else:
-        noun = {"box": "block", "cylinder": "cylinder", "sphere": "ball"}[profile.shape]
+        noun = {"box": "block", "cylinder": "cylinder", "sphere": "ball", "log": "carrot"}[
+            profile.shape
+        ]
         phrases = [f"{word} {noun}"]
     return [*phrases, f"{word} object"]
 
