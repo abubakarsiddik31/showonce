@@ -134,18 +134,18 @@ The same steps work for the sample clips, which come with a scene file for repea
 
 A learned step is one action, each with its own motion in the simulator and a check against simulator ground truth (`src/showonce/sim/skills.py`, `executor.py`):
 
-| Action | Meaning | In the sim | Status |
-|---|---|---|---|
-| `place_in` | put an object in a container | pick, carry, set down inside the tray's rim | ✅ shipped |
-| `stack_on` | put an object on another | same, onto the top of the one below | ✅ shipped |
-| `wipe` | clean a dish or surface with a sponge or cloth | pick up the tool, sweep a back-and-forth raster over the whole surface; every stain it passes over is cleared | ✅ shipped |
-| `open` | tear open a bag or packet | take the seal strip along the bag's top edge by its protruding end, tear it off and lay it beside the bag, as the hand does in the clip | ✅ shipped |
-| `place_near` | put an object beside another on open table | pick-place to a free spot at the stated relation (`left_of`, `right_of`, `in_front_of`, `behind`, `next_to`) | ✅ shipped |
-| `push` | slide a wide or flat object without grasping it | controller drives from behind at low height; contact does the work | ✅ shipped |
-| `pour` | pour a cup into a container | grasp, carry above the target, tilt the wrist, put the cup back | ✅ shipped |
-| `stir` | stir a container with a tool | circles inside the container rim, tool above the floor | ✅ shipped |
-| `cut` | cut a box in two with a knife | one straight sweep; the box becomes two halves | ✅ shipped |
-| `press` | press a button, pump or push-light | descend straight down, dwell, retract | ✅ shipped |
+| Action | Meaning | In the sim |
+|---|---|---|
+| `place_in` | put an object in a container | pick, carry, set down inside the tray's rim |
+| `stack_on` | put an object on another | same, onto the top of the one below |
+| `wipe` | clean a dish or surface with a sponge or cloth | pick up the tool, sweep a back-and-forth raster over the whole surface; every stain it passes over is cleared |
+| `open` | tear open a bag or packet | take the seal strip along the bag's top edge by its protruding end, tear it off and lay it beside the bag, as the hand does in the clip |
+| `place_near` | put an object beside another on open table | pick-place to a free spot at the stated relation (`left_of`, `right_of`, `in_front_of`, `behind`, `next_to`) |
+| `push` | slide a wide or flat object without grasping it | controller drives from behind at low height; contact does the work |
+| `pour` | pour a cup into a container | grasp, carry above the target, tilt the wrist, put the cup back |
+| `stir` | stir a container with a tool | circles inside the container rim, tool above the floor |
+| `cut` | cut a box in two with a knife | one straight sweep; the box becomes two halves |
+| `press` | press a button, pump or push-light | descend straight down, dwell, retract |
 
 Where things ended up cannot show a wipe or a tear, and neither can it show a pour, a stir, a cut or a press, so when Muse Spark reads any of those in the clip, its reading is used instead of the motion tracking — Muse Spark's reading is used for all of `SEMANTIC_ACTIONS` (`wipe`, `open`, `pour`, `stir`, `cut`, `press`). These are simulator abstractions: there is no fluid or cloth physics, pour and stir contents are an abstract disc with no fluid physics, and a “tear” is a seal strip coming off a flat bag, not a bag ripping. A push keeps an object's true size because it is never grasped. Nothing here has been tested on real footage yet.
 
