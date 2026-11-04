@@ -1,0 +1,17 @@
+{
+  "name": "dishes_wash",
+  "steps": [
+    {
+      "object": "yellow sponge",
+      "action": "wipe",
+      "target": "white plate",
+      "relation": null
+    },
+    {
+      "object": "yellow sponge",
+      "action": "wipe",
+      "target": "blue plate",
+      "relation": null
+    }
+  ]
+}

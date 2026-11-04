@@ -9,12 +9,12 @@
 <table>
 <tr>
 <td align="center"><a href="demos/pexels_fruit_basket/robot.mp4"><img src="demos/hero_fruit.gif" width="400" alt="A real clip of fruit going into a basket, and the robot arm doing the same job." /></a><br /><sub><b>Fruit into a basket</b>: the clip, then the arm</sub></td>
-<td align="center"><a href="demos/pexels_cut_carrots/robot.mp4"><img src="demos/hero_carrot.gif" width="400" alt="A real clip of a carrot being sliced, and the robot arm chopping a carrot into slices." /></a><br /><sub><b>Chop a carrot</b>: the clip, then the arm</sub></td>
-<td align="center"><a href="web/public/robot-demo.mp4"><img src="demos/hero_plates.gif" width="400" alt="The robot arm scrubbing a stained plate in simulation." /></a><br /><sub><b>Clean a plate</b>: the arm scrubbing, in circles</sub></td>
+<td align="center"><a href="demos/dishes_wash/robot.mp4"><img src="demos/hero_plates.gif" width="400" alt="A clip of two plates being scrubbed, and the robot arm scrubbing the same plates." /></a><br /><sub><b>Wash the plates</b>: the clip, then the arm</sub></td>
+<td align="center"><a href="demos/pexels_sugar_mix/robot.mp4"><img src="demos/hero_sugar.gif" width="400" alt="A real clip of a baker pouring and stirring sugar, and the robot arm doing the same." /></a><br /><sub><b>Pour sugar, stir</b>: the clip, then the arm</sub></td>
 </tr>
 </table>
 
-<sub>Left and middle: real stock footage on the left of each pair, the robot on the right (sped up). <a href="#see-it-work">All demos</a></sub>
+<sub>Each pair: the clip ShowOnce watched on the left, the robot on the right (sped up, zoomed in on the table). <a href="#see-it-work">All demos</a></sub>
 
 [![Hackathon](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-2026-blue)](https://dev.meta.ai/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)](pyproject.toml)
@@ -66,12 +66,13 @@ Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`),
 | [`pexels_fruit_basket`](demos/pexels_fruit_basket) | a baker drops fruit in a basket | four `place_in` steps: three lemons and an orange | real stock footage |
 | [`pexels_sugar_mix`](demos/pexels_sugar_mix) | a baker pours sugar and stirs it in | `pour`, then `stir` until the colour blends | real stock footage |
 | [`pexels_cut_carrots`](demos/pexels_cut_carrots) | a carrot sliced on a board | `cut`: a lying carrot becomes ten slices piled beside it | real stock footage |
+| [`dishes_wash`](demos/dishes_wash) | two plates scrubbed with a sponge | `wipe` twice: every stain on each plate cleared | AI-generated |
 | [`toys_into_bin`](demos/toys_into_bin) | three toys go in a bin | three `place_in` steps | AI-generated |
 | [`dishes_into_rack`](demos/dishes_into_rack) | three dishes go in a rack | three `place_in` steps | AI-generated |
 | [`lamp_press`](demos/lamp_press) | a push light is clicked on | `press` | AI-generated |
 | [`tidy_table`](demos/tidy_table) | nothing: the robot plans alone | fruit into the bowl, blocks stacked | none (robot only) |
 
-The first six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth. Three of the six clips are real stock footage; the rest are AI-generated and have small glitches.
+The first seven replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth. Three of the seven clips are real stock footage; the rest are AI-generated and have small glitches.
 
 For how it works inside (stages, models, simulator, verification, limits) see [TECHNICAL.md](TECHNICAL.md).
 
