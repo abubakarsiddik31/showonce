@@ -216,6 +216,11 @@ def learn_from_video(
         try:
             program = learn_program(scene.name, obs.moves, obs.rests, scene.containers)
             problems = compare_plans(program.steps, semantic) if semantic is not None else []
+            if not program.steps and semantic:
+                # Nothing resting changed (the object arrived in a hand): trust the reading.
+                program = TaskProgram(name=scene.name, steps=semantic)
+                problems = ["geometry saw no move; using Muse Spark's steps"]
+                source = "muse_spark"
         except LearnError:
             if semantic is None:
                 raise
