@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/showonce.svg" width="96" alt="ShowOnce logo" />
+<img src="web/public/showonce.svg" width="96" alt="ShowOnce logo" />
 
 # ShowOnce
 
@@ -15,10 +15,26 @@ SAM 3.1 watches the clip · Muse Spark 1.3 reads the steps · MuJoCo Panda does 
 
 </div>
 
-> **Status:** Built for the Meta Global AI Developer Hackathon 2026 (indie track, “Push the Frontier”). All ten actions in the Skills table below are shipped.
+> Built for the Meta Global AI Developer Hackathon 2026 (indie track, “Push the Frontier”). Ten actions are shipped; the finished human and robot pairs are in [`demos/`](demos/).
+
+## See it work
+
+Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`), the arm repeating it (`robot.mp4`), and the same program on a shuffled table (`robot_shuffled.mp4`).
+
+| Demo | Task | Footage |
+|---|---|---|
+| [`pexels_fruit_basket`](demos/pexels_fruit_basket) | put a lemon in the basket | real stock footage |
+| [`pexels_sugar_mix`](demos/pexels_sugar_mix) | pour sugar into a bowl, stir | real stock footage |
+| [`pexels_cut_carrots`](demos/pexels_cut_carrots) | cut a carrot | real stock footage |
+| [`toys_into_bin`](demos/toys_into_bin) | three toys into a bin | AI-generated |
+| [`dishes_into_rack`](demos/dishes_into_rack) | three dishes into a rack | AI-generated |
+| [`lamp_press`](demos/lamp_press) | press a push light | AI-generated |
+
+All six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth.
 
 ## Contents
 
+- [See it work](#see-it-work)
 - [Why ShowOnce](#why-showonce)
 - [How it works](#how-it-works)
 - [Results](#results)
@@ -61,9 +77,9 @@ flowchart LR
 
 ShowOnce claims task-level imitation (what moved where, in what order). It does not learn dexterous motor skills.
 
-## Results
+## Earlier results
 
-Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM finding the objects in the simulator. All but `pexels_cut_carrots` are AI-generated test clips, not real footage, and failures are kept in the table.
+Measured while building, before the current demo set. Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM finding the objects in the simulator. All but `pexels_cut_carrots` are AI-generated test clips, not real footage, and failures are kept in the table.
 
 | Clip | Steps learned | Read by | Seed 3 | Seed 7 |
 |---|---|---|---|---|

@@ -36,8 +36,10 @@ def test_stack_succeeds_from_random_layouts() -> None:
 def test_contents_pour_from_the_cup_into_the_bowl() -> None:
     cup = block_def("red cup", ObjectProfile(shape="cylinder", width=0.06, depth=0.06, height=0.08))
     world = SimWorld(
-        [cup], [ZoneDef("bowl", (0.4, 0.1), (0.16, 0.16))],
-        contents=["red cup"], pour_targets=["bowl"],
+        [cup],
+        [ZoneDef("bowl", (0.4, 0.1), (0.16, 0.16))],
+        contents=["red cup"],
+        pour_targets=["bowl"],
     )
     assert world.contents_of("red cup") is not None and world.contents_of("bowl") is None
     world.pour_into("red cup", "bowl")
@@ -68,7 +70,8 @@ def test_contents_for_the_program_from_its_pour_and_stir_steps() -> None:
 @needs_panda
 def test_pressing_darkens_and_marks_the_object() -> None:
     lamp = block_def(
-        "orange lamp", ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True)
+        "orange lamp",
+        ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True),
     )
     world = SimWorld([lamp], [])
     world.set_block("orange lamp", (0.45, 0.0))
@@ -83,7 +86,9 @@ def test_cutting_swaps_a_box_for_its_two_halves() -> None:
     program = TaskProgram(
         name="t", steps=[Step(object="gray knife", action="cut", target="white bar")]
     )
-    world = build_world(Layout({"white bar": (0.45, 0.0), "gray knife": (0.45, 0.2)}, [], profiles), program)
+    world = build_world(
+        Layout({"white bar": (0.45, 0.0), "gray knife": (0.45, 0.2)}, [], profiles), program
+    )
     assert world.halves_of("white bar") == ("white bar half a", "white bar half b")
     assert not world.is_split("white bar")
     world.split("white bar")
@@ -95,7 +100,9 @@ def test_cutting_swaps_a_box_for_its_two_halves() -> None:
 @needs_panda
 def test_parked_halves_wait_at_separate_depths() -> None:
     profiles = {"white bar": ObjectProfile(shape="box", width=0.12, depth=0.05, height=0.04)}
-    program = TaskProgram(name="t", steps=[Step(object="gray knife", action="cut", target="white bar")])
+    program = TaskProgram(
+        name="t", steps=[Step(object="gray knife", action="cut", target="white bar")]
+    )
     world = build_world(
         Layout({"white bar": (0.45, 0.0), "gray knife": (0.45, 0.2)}, [], profiles), program
     )

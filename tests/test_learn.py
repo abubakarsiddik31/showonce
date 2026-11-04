@@ -57,7 +57,9 @@ def test_repeat_move_into_same_container_is_dropped() -> None:
 # NEAR_RADIUS_PX (90): inside the stack radius the move reads as stack_on, not place_near.
 def test_move_to_open_table_becomes_place_near() -> None:
     moves = [
-        Move(label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(260.0, 110.0))
+        Move(
+            label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(260.0, 110.0)
+        )
     ]
     rests = {
         "red block": [Rest(0, 10, (100.0, 100.0)), Rest(40, 90, (260.0, 110.0))],
@@ -71,7 +73,9 @@ def test_move_to_open_table_becomes_place_near() -> None:
 
 def test_place_near_relation_follows_the_dominant_axis() -> None:
     moves = [
-        Move(label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(320.0, 160.0))
+        Move(
+            label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(320.0, 160.0)
+        )
     ]
     rests = {
         "red block": [Rest(0, 10, (100.0, 100.0)), Rest(40, 90, (320.0, 160.0))],
@@ -83,7 +87,9 @@ def test_place_near_relation_follows_the_dominant_axis() -> None:
 
 def test_a_move_to_nowhere_still_fails() -> None:
     moves = [
-        Move(label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(600.0, 500.0))
+        Move(
+            label="red block", start_frame=10, end_frame=40, src=(100.0, 100.0), dst=(600.0, 500.0)
+        )
     ]
     rests = {
         "red block": [Rest(0, 10, (100.0, 100.0)), Rest(40, 90, (600.0, 500.0))],

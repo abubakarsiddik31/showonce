@@ -93,5 +93,7 @@ def test_pressable_comes_from_the_description() -> None:
 
 
 def test_pressable_prompts_lead_with_a_button() -> None:
-    profile = ObjectProfile(shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True, rgb=(0.9, 0.4, 0.1))
+    profile = ObjectProfile(
+        shape="cylinder", width=0.08, depth=0.08, height=0.03, pressable=True, rgb=(0.9, 0.4, 0.1)
+    )
     assert sim_prompts("orange lamp", profile)[0] == "orange button"

@@ -18,3 +18,6 @@ samples/synthetic/
 
 .worktrees/
 .mimosa/
+
+# Internal docs
+docs/
