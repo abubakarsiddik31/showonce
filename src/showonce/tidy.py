@@ -131,7 +131,7 @@ def run_tidy(
     perceived: dict[str, XY] | None = None
     errors: dict[str, float] = {}
     if not oracle:
-        perceived = perceive_blocks(client, world, scene.sim_prompt_options, calibration)
+        perceived = perceive_blocks(client, world, scene.sim_prompt_options)
         errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
     seen = perceived if perceived is not None else truth
     png = encode_png(np.ascontiguousarray(cv2.cvtColor(top_view(world), cv2.COLOR_RGB2BGR)))
@@ -167,9 +167,7 @@ def run_tidy(
     if sam_verify and not oracle:
 
         def look(wanted: list[str]) -> dict[str, XY]:
-            return perceive_blocks(
-                client, world, {n: scene.sim_prompt_options[n] for n in wanted}, calibration
-            )
+            return perceive_blocks(client, world, {n: scene.sim_prompt_options[n] for n in wanted})
 
         fixes = fix_misses(program, world, controller, regions, look, names, seen)
     if recorder and record_to:

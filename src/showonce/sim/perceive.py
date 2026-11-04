@@ -60,12 +60,13 @@ def perceive_blocks(
     client: MetaClient,
     world: SimWorld,
     prompts: Mapping[str, Sequence[str]],
-    calibration: Calibration,
     *,
     workers: int = 3,
 ) -> dict[str, XY]:
     """Render the top camera (arm must already be parked) and locate each object with SAM."""
     image = top_view(world)
+    # The sim camera's own frame, whatever size the demo clip was: pixels here are not the clip's.
+    calibration = Calibration.for_frame(image.shape[1], image.shape[0])
     ok, encoded = cv2.imencode(".png", cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
     if not ok:
         raise RuntimeError("Could not encode the camera frame")
