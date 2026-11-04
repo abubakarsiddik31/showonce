@@ -39,7 +39,6 @@ For how it works inside (stages, models, simulator, verification, limits) see [T
 - [See it work](#see-it-work)
 - [Why ShowOnce](#why-showonce)
 - [How it works](#how-it-works)
-- [Earlier results](#earlier-results)
 - [Teach it your own clip](#teach-it-your-own-clip)
 - [Skills](#skills)
 - [How objects are modelled](#how-objects-are-modelled)
@@ -78,23 +77,6 @@ flowchart LR
 5. Every step is checked against simulator ground truth. The robot reports what it actually did, including failures. A second check looks at the finished table through SAM, like a camera would, and fixes a miss once (see below).
 
 ShowOnce claims task-level imitation (what moved where, in what order). It does not learn dexterous motor skills.
-
-## Earlier results
-
-Measured while building, before the current demo set. Learn from the clip, then run on shuffled tables (seeds 3 and 7) with SAM finding the objects in the simulator. All but `pexels_cut_carrots` are AI-generated test clips, not real footage, and failures are kept in the table.
-
-| Clip | Steps learned | Read by | Seed 3 | Seed 7 |
-|---|---|---|---|---|
-| dishes_into_rack | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
-| fruit_into_bowl | 3 of 3 correct | motion | 3/3 steps | 3/3 steps |
-| toys_into_bin | 3 of 3 correct | Muse Spark (motion could not explain a move) | 3/3 steps | 3/3 steps |
-| dishes_wash | 2 of 2 correct (wipe each plate) | Muse Spark (a wipe is not visible to tracking) | 2/2 steps, 28 of 28 stains | 2/2 steps, 28 of 28 stains |
-| cooking_prep | 3 of 3 correct (cut, pour, stir) | Muse Spark (cut, pour and stir are not visible to tracking) | 3/3 steps | 3/3 steps |
-| book_push_aside | 1 of 1 correct | Muse Spark (a slide has no pick-and-place geometry) | 1/1 steps | not run |
-| lamp_press | 1 of 1 correct | Muse Spark (a press changes no resting position) | 1/1 steps | not run |
-| pexels_cut_carrots | 1 of 1 correct (cut) | Muse Spark (angled stock footage, default layout) | 1/1 steps | not run |
-
-SAM position error: 0.1 to 3.3 mm across all five clips. The dish-wash clip also passed on seeds 2, 5 and 11. The three newest clips (`book_push_aside`, `lamp_press`, `pexels_cut_carrots`) were verified headless on a single layout each; shuffled-seed replays are not run for them yet.
 
 ## Teach it your own clip
 
@@ -204,7 +186,7 @@ pnpm test && pnpm typecheck && pnpm lint
 
 The finished human-and-robot pairs are in `demos/`. `samples/` holds six demo clips, each with a scene file naming the objects and containers. Two are AI-generated put-and-place footage (see `scripts/generate_videos.py`, a development tool that is not part of the product): `toys_into_bin` and `dishes_into_rack` (30 s), with small size glitches in the objects. `lamp_press` (press the orange push light so it clicks on) is AI-generated and trimmed to the part without glitches. Three are real Pexels stock footage: `pexels_fruit_basket` (top-down: three lemons and an orange go into a basket, so the robot learns four steps), `pexels_cut_carrots` (an angled close-up of carrot slicing: the robot chops a lying carrot into ten slices and piles them beside it, on a default layout), `pexels_sugar_mix` (top-down: a baker pours sugar into a bowl and stirs it; objects are profiled by hand because the spoon is in a hand in the first frame). Replays of the three real clips on seeds 3, 7 and 11 all passed, with SAM within 2 mm. A portrait clip was dropped: the table mapping assumes a landscape frame.
 
-Four earlier AI clips were withdrawn because the footage itself was flawed or a real clip replaced them. `fruit_into_bowl` gave way to `pexels_fruit_basket`; the others: `dishes_wash` (stains vanish between frames and the sponge changes shape), `cooking_prep` (the dough bar appears from nowhere) and `book_push_aside` (the pushed book slides back to where it began). Their scene files stay, and wipe, push and cut are still covered by the simulator tests; the rows for them in the results table above were measured on those clips. Put real phone clips next to them with a scene file of the same shape.
+Four earlier AI clips were withdrawn because the footage itself was flawed or a real clip replaced them. `fruit_into_bowl` gave way to `pexels_fruit_basket`; the others: `dishes_wash` (stains vanish between frames and the sponge changes shape), `cooking_prep` (the dough bar appears from nowhere) and `book_push_aside` (the pushed book slides back to where it began). Their scene files stay, and wipe, push and cut are still covered by the simulator tests; Put real phone clips next to them with a scene file of the same shape.
 
 Eight synthetic clips with pixel-level ground truth, used for the move-detection eval, are rebuilt locally with `uv run showonce synth` (written to the git-ignored `samples/synthetic/`).
 
