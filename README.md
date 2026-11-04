@@ -9,6 +9,7 @@
 [![Hackathon](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-2026-blue)](https://dev.meta.ai/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)](pyproject.toml)
 [![Simulator](https://img.shields.io/badge/simulator-MuJoCo-orange)](https://mujoco.org/)
+[![Technical docs](https://img.shields.io/badge/docs-TECHNICAL.md-informational)](TECHNICAL.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 SAM 3.1 watches the clip · Muse Spark 1.3 reads the steps · MuJoCo Panda does the task
@@ -46,6 +47,7 @@ For how it works inside (stages, models, simulator, verification, limits) see [T
 - [Web app](#web-app)
 - [Sample clips](#sample-clips)
 - [Development](#development)
+- [Technical overview](TECHNICAL.md)
 
 ## Why ShowOnce
 
@@ -75,6 +77,8 @@ flowchart LR
 3. The steps compile into a symbolic task program (object names and relations, no pixel positions).
 4. A **MuJoCo** Panda arm executes the program. A stored program can be replayed on a shuffled layout, with SAM re-finding the objects.
 5. Every step is checked against simulator ground truth. The robot reports what it actually did, including failures. A second check looks at the finished table through SAM, like a camera would, and fixes a miss once (see below).
+
+The stages, models and checks are described in detail in [TECHNICAL.md](TECHNICAL.md).
 
 ShowOnce claims task-level imitation (what moved where, in what order). It does not learn dexterous motor skills.
 
