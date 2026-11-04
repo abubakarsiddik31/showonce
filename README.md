@@ -37,7 +37,7 @@ All six replay on a shuffled table with every step verified, and SAM finds the o
 - [See it work](#see-it-work)
 - [Why ShowOnce](#why-showonce)
 - [How it works](#how-it-works)
-- [Results](#results)
+- [Earlier results](#earlier-results)
 - [Teach it your own clip](#teach-it-your-own-clip)
 - [Skills](#skills)
 - [How objects are modelled](#how-objects-are-modelled)
