@@ -30,8 +30,9 @@ Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`),
 | [`toys_into_bin`](demos/toys_into_bin) | three toys into a bin | AI-generated |
 | [`dishes_into_rack`](demos/dishes_into_rack) | three dishes into a rack | AI-generated |
 | [`lamp_press`](demos/lamp_press) | press a push light | AI-generated |
+| [`tidy_table`](demos/tidy_table) | tidy a scattered table with no clip: fruit into the bowl, blocks stacked | none (robot only) |
 
-All six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth.
+The first six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth.
 
 For how it works inside (stages, models, simulator, verification, limits) see [TECHNICAL.md](TECHNICAL.md).
 
@@ -125,7 +126,7 @@ uv run showonce replay runs/<name>/program.json --scene runs/<name>/scene.json -
 
 ## Tidy mode
 
-No demo clip. Scatter a scene's objects, and the robot looks (SAM 3.1), plans (Muse Spark 1.3, in the same ten-verb language a learned demo compiles to), tidies, then checks itself with SAM:
+Scatter a scene's objects, and the robot looks (SAM 3.1), plans (Muse Spark 1.3, in the same ten-verb language a learned demo compiles to), tidies, then checks itself with SAM:
 
 ```bash
 uv run showonce tidy samples/tidy_table.json --seed 1 --out runs/tidy.mp4
