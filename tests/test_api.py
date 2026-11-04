@@ -92,3 +92,28 @@ def test_a_staged_slip_drops_what_was_placed_last_and_not_what_is_covered() -> N
     )
     assert slip_candidate(program) == "c"
     assert slip_candidate(TaskProgram(name="t", steps=program.steps[1:2])) is None
+
+
+def test_lists_the_finished_demo_pairs(tmp_path: Path) -> None:
+    demo = tmp_path / "demos" / "pexels_sugar_mix"
+    demo.mkdir(parents=True)
+    for file in ("human.mp4", "robot.mp4"):
+        (demo / file).write_bytes(b"x")
+    (demo / "program.json").write_text(
+        '{"steps": [{"object": "sugar bowl", "action": "pour", "target": "mixing bowl"}]}'
+    )
+    (tmp_path / "demos" / "empty").mkdir()
+    app = create_app(
+        Settings(
+            samples_dir=tmp_path / "samples",
+            runs_dir=tmp_path / "runs",
+            demos_dir=tmp_path / "demos",
+            web_dist=tmp_path / "dist",
+        )
+    )
+    (body,) = TestClient(app).get("/api/demos").json()
+    assert body["id"] == "pexels_sugar_mix"
+    assert body["realFootage"] is True
+    assert body["steps"] == ["sugar bowl: pour mixing bowl"]
+    assert body["humanUrl"] == "/media/demos/pexels_sugar_mix/human.mp4"
+    assert body["shuffledUrl"] is None

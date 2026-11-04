@@ -16,30 +16,59 @@ SAM 3.1 watches the clip · Muse Spark 1.3 reads the steps · MuJoCo Panda does 
 
 </div>
 
-> Built for the Meta Global AI Developer Hackathon 2026 (indie track, “Push the Frontier”). Ten actions are shipped; the finished human and robot pairs are in [`demos/`](demos/).
+> Built for the Meta Global AI Developer Hackathon 2026 (indie track, “Push the Frontier”).
+
+## The idea
+
+A home is the hardest place to put a robot. Every kitchen is different. The dishes go in a different rack, the toys in a different bin, the lamp is a different lamp. You cannot ship a robot with every household job pre-programmed, and you cannot ask a family to collect hundreds of demonstrations or write code.
+
+But a person can already teach almost anything by **showing it once**. A parent shows a child how the dishes go in the rack. A friend shows you how they like the carrots cut. Nobody hands over a dataset.
+
+**ShowOnce is built on that gap.** The goal is a robot that picks up a new household skill the way a person does: you do the task once on camera, it watches, tells you in plain words what it understood, and then does the job itself, on a table that looks nothing like the one in your clip.
+
+> *Show a robot a task once. It learns the rule, applies it to a new table, and checks its own work.*
+
+### What makes this hard, and what we did about it
+
+| Problem with learning from one demo | What ShowOnce does |
+|---|---|
+| **A video is not a program.** Pixels and hand motion do not transfer to another table. | It learns the *task*, not the motion: a short list of steps made only of object names and relations (“lemon → basket”, “stir the bowl”). No coordinates are stored, so the program is valid on any layout. |
+| **A hand hides what it moves.** Tracking an object through a grasp is unreliable. | It compares where each object *rested* before and after every move. A jump between two rests is a move. |
+| **One demo is ambiguous.** Was “red on blue” about colour or size? | Two independent readings of the clip (SAM tracking and Muse Spark watching the video) are cross-checked. If they disagree, or the person wants to add detail, it talks it through before anything moves. |
+| **Some chores leave no trace.** Wiping, pouring, stirring and cutting do not change where things sit. | Muse Spark’s reading of the video decides those steps, and each has its own motion in the simulator. |
+| **A robot that cannot check itself cannot be trusted.** | Every step is checked against simulator ground truth, then a second time by looking at the finished table through SAM, like a camera would. A miss is fixed once. |
+
+### The skill in use
+
+1. **You show it.** Film a task once with a phone: three lemons into a basket, sugar poured and stirred, a carrot cut into slices.
+2. **It looks and listens.** SAM 3.1 finds and tracks every object. Muse Spark 1.3 watches the same clip and says, in its own words, what it thinks you did.
+3. **You agree or correct it.** It waits. You answer in plain language until it has it right. It can only name objects that are really on the table.
+4. **It plans in its own way.** The plan is a program of ten possible actions. It does not copy your hand: a wipe becomes its own scrub, a put becomes a pick and place.
+5. **It does the job on a new table.** Objects are shuffled, SAM finds them again, and the Panda arm does each step.
+6. **It checks its own work.** Simulator ground truth, then SAM on the finished table. Failures are reported, not hidden.
 
 ## See it work
 
-Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`), the arm repeating it (`robot.mp4`), and the same program on a shuffled table (`robot_shuffled.mp4`).
+Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`), the arm repeating it (`robot.mp4`), and the same program on a shuffled table (`robot_shuffled.mp4`). The studio’s landing page plays them side by side (`uv run showonce ui`, then the **Watch it** section).
 
-| Demo | Task | Footage |
-|---|---|---|
-| [`pexels_fruit_basket`](demos/pexels_fruit_basket) | three lemons and an orange into the basket | real stock footage |
-| [`pexels_sugar_mix`](demos/pexels_sugar_mix) | pour sugar into a bowl, stir until it blends | real stock footage |
-| [`pexels_cut_carrots`](demos/pexels_cut_carrots) | chop a carrot into ten slices | real stock footage |
-| [`toys_into_bin`](demos/toys_into_bin) | three toys into a bin | AI-generated |
-| [`dishes_into_rack`](demos/dishes_into_rack) | three dishes into a rack | AI-generated |
-| [`lamp_press`](demos/lamp_press) | press a push light | AI-generated |
-| [`tidy_table`](demos/tidy_table) | tidy a scattered table with no clip: fruit into the bowl, blocks stacked | none (robot only) |
+| Demo | What it was shown | What the robot learned | Footage |
+|---|---|---|---|
+| [`pexels_fruit_basket`](demos/pexels_fruit_basket) | a baker drops fruit in a basket | four `place_in` steps: three lemons and an orange | real stock footage |
+| [`pexels_sugar_mix`](demos/pexels_sugar_mix) | a baker pours sugar and stirs it in | `pour`, then `stir` until the colour blends | real stock footage |
+| [`pexels_cut_carrots`](demos/pexels_cut_carrots) | a carrot sliced on a board | `cut`: a lying carrot becomes ten slices piled beside it | real stock footage |
+| [`toys_into_bin`](demos/toys_into_bin) | three toys go in a bin | three `place_in` steps | AI-generated |
+| [`dishes_into_rack`](demos/dishes_into_rack) | three dishes go in a rack | three `place_in` steps | AI-generated |
+| [`lamp_press`](demos/lamp_press) | a push light is clicked on | `press` | AI-generated |
+| [`tidy_table`](demos/tidy_table) | nothing: the robot plans alone | fruit into the bowl, blocks stacked | none (robot only) |
 
-The first six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth.
+The first six replay on a shuffled table with every step verified, and SAM finds the objects within 3 mm of simulator ground truth. Three of the six clips are real stock footage; the rest are AI-generated and have small glitches.
 
 For how it works inside (stages, models, simulator, verification, limits) see [TECHNICAL.md](TECHNICAL.md).
 
 ## Contents
 
+- [The idea](#the-idea)
 - [See it work](#see-it-work)
-- [Why ShowOnce](#why-showonce)
 - [How it works](#how-it-works)
 - [Teach it your own clip](#teach-it-your-own-clip)
 - [Skills](#skills)
@@ -48,15 +77,8 @@ For how it works inside (stages, models, simulator, verification, limits) see [T
 - [Web app](#web-app)
 - [Sample clips](#sample-clips)
 - [Development](#development)
+- [Where this goes](#where-this-goes)
 - [Technical overview](TECHNICAL.md)
-
-## Why ShowOnce
-
-Programming a robot usually takes an expert or a large demonstration set. People teach by showing once. But one demo is ambiguous: was that “red on blue” about colour or about size?
-
-ShowOnce is built around that problem. It watches one short clip, notices when the demo could mean more than one thing, asks **one** clarifying question, then performs the task from a new layout of the objects, and checks its own work.
-
-**One-liner:** Show a robot a task once. It learns the rule, applies it to a new table, and checks the result.
 
 ## How it works
 
@@ -71,13 +93,15 @@ flowchart LR
     E --> F
     F --> G["🤖 MuJoCo Panda<br/>executes on a shuffled table"]
     G --> H["✅ Verify against<br/>simulator ground truth"]
+    H --> I["👁 SAM checks the finished table<br/>and fixes a miss once"]
 ```
 
-1. **SAM 3.1** tracks each colored object in the clip. Because hands hide objects during a move, only the resting positions before and after each move are compared.
-2. **Muse Spark 1.3** watches the same clip and returns the steps as structured JSON.
-3. The steps compile into a symbolic task program (object names and relations, no pixel positions).
-4. A **MuJoCo** Panda arm executes the program. A stored program can be replayed on a shuffled layout, with SAM re-finding the objects.
-5. Every step is checked against simulator ground truth. The robot reports what it actually did, including failures. A second check looks at the finished table through SAM, like a camera would, and fixes a miss once (see below).
+1. **Calibrate.** The frame is mapped onto a fixed table rectangle, and the simulator’s camera sees the same rectangle, so a pixel means the same thing in the clip and in the sim.
+2. **Perceive.** SAM 3.1 tracks each object through the clip from a short noun phrase. Because hands hide objects during a move, only the resting positions before and after each move are used. Muse Spark looks at the first frame and describes each object (shape, size, handle, colour) so the simulator can rebuild it.
+3. **Understand.** Each move is explained from geometry: landing inside a container is `place_in`, landing on another object is `stack_on`, landing beside one is `place_near`. Muse Spark independently watches the video and returns steps as schema-checked JSON. Where the two disagree, it asks. Where geometry cannot see the action (wipe, open, pour, stir, cut, press), Muse Spark’s reading is used.
+4. **Compile.** The steps become a symbolic **task program** with ten possible actions, using names only. It is saved as `program.json` and can be replayed on any layout.
+5. **Act.** A Franka Panda in MuJoCo performs each step with its own motion. On a replay the robot does not know where things are: it renders its camera, and SAM finds each object by a phrase built from its profile.
+6. **Verify.** Each step is checked against simulator ground truth. Then the arm parks, the camera looks at the finished table, and SAM compares what it sees with each step’s goal. A step it sees as missed is run once more, from where SAM saw things.
 
 The stages, models and checks are described in detail in [TECHNICAL.md](TECHNICAL.md).
 
@@ -172,7 +196,7 @@ uv run showonce ui                         # the web app (see below)
 
 `make backend` (or `uv run showonce ui`) serves the app at http://127.0.0.1:8000. It is two pages:
 
-- **The landing page** (`#/`) carries the message: what it is, how it works in three steps, what it can do grouped into four things (learn from one clip, check it understood, do the job its own way, check its own work), the demo clips grouped by kind of task, and what has been measured.
+- **The landing page** (`#/`) carries the message: what it is, how it works in three steps, a **Watch it** player for the finished demos (the clip it watched, the arm repeating it, and the shuffled table, no API key needed), what it can do grouped into four things (learn from one clip, check it understood, do the job its own way, check its own work), the demo clips grouped by kind of task, and what has been measured.
 - **The studio** (`#/studio`) is where the work happens, in three stages shown at the top: **Show it once** (pick a clip or upload your own and let the robot watch), **Talk it through** (the conversation above, then the agreed plan), and **Watch it work**. The robot gets the big stage on the right: the cell at rest, locked until you approve, then the arm at work with a caption of what it is doing and how, the plan lighting up in step, and playback at 2× by default. After a run SAM checks the finished table and the arm fixes a miss once. *Options → Make it slip* drops an object after the run so you can watch that check catch it.
 
 `#/studio?clip=dishes_wash` opens a clip directly. Clips carry a `title` and a `group` in their scene file, which is how they are grouped.
@@ -203,6 +227,17 @@ uv run ruff check .    # lint
 uv run ruff format .   # format
 uv run mypy            # type check
 ```
+
+## Where this goes
+
+Everything here runs in simulation, on a handful of coloured objects, with an arm that grasps by constraint. What would make it a household robot is the next set of problems, not a different idea:
+
+- **Real hands and real grasping**, so the same programs run on a physical arm.
+- **Real kitchens**: more cluttered scenes, mixed lighting, objects that look alike.
+- **A growing skill library.** A program learned once is a named, readable skill. Skills can be kept, edited, chained, and shared between robots.
+- **Teaching by talking** that carries on over days: “no, the other rack”, “like last time but with the blue cups”.
+
+The core bet is that the task, not the motion, is the thing worth learning from one demonstration.
 
 ## Limits, stated plainly
 

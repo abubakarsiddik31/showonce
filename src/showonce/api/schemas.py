@@ -30,6 +30,16 @@ class SampleOut(ApiModel):
     duration_s: float
 
 
+class DemoOut(ApiModel):
+    id: str
+    title: str
+    real_footage: bool
+    steps: list[str]
+    human_url: str | None
+    robot_url: str
+    shuffled_url: str | None
+
+
 class StepModel(ApiModel):
     object: str
     action: Action

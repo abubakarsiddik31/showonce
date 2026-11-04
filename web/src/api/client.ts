@@ -2,6 +2,7 @@ import type { z } from 'zod'
 
 import {
   chatReplySchema,
+  demoSchema,
   healthSchema,
   jobRefSchema,
   jobSchema,
@@ -37,6 +38,7 @@ const json = (body: unknown): RequestInit => ({
 
 export const api = {
   health: () => request('/api/health', healthSchema),
+  demos: () => request('/api/demos', demoSchema.array()),
   samples: () => request('/api/samples', sampleSchema.array()),
   job: (id: string) => request(`/api/jobs/${id}`, jobSchema),
   learn: (sampleId: string) =>

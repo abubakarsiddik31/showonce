@@ -10,10 +10,12 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from showonce.api.demos import list_demos
 from showonce.api.jobs import Job
 from showonce.api.schemas import (
     ChatReply,
     ChatRequest,
+    DemoOut,
     JobOut,
     JobRef,
     LearnRequest,
@@ -53,6 +55,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/samples")
     def samples() -> list[SampleOut]:
         return workspace.list_samples()
+
+    @app.get("/api/demos")
+    def demos() -> list[DemoOut]:
+        return list_demos(settings.demos_dir, settings.samples_dir)
 
     @app.post("/api/learn")
     def learn(body: LearnRequest) -> JobRef:
@@ -101,6 +107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for url, folder in (
         ("/media/samples", settings.samples_dir),
         ("/media/runs", settings.runs_dir),
+        ("/media/demos", settings.demos_dir),
     ):
         folder.mkdir(parents=True, exist_ok=True)
         app.mount(url, StaticFiles(directory=folder), name=url.strip("/").replace("/", "-"))

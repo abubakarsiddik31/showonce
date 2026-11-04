@@ -39,6 +39,17 @@ export const sampleSchema = z.object({
 })
 export type Sample = z.infer<typeof sampleSchema>
 
+export const demoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  realFootage: z.boolean(),
+  steps: z.array(z.string()),
+  humanUrl: z.string().nullable(),
+  robotUrl: z.string(),
+  shuffledUrl: z.string().nullable(),
+})
+export type Demo = z.infer<typeof demoSchema>
+
 const optionSchema = z.object({ id: z.string(), label: z.string(), steps: z.array(stepSchema) })
 export const questionSchema = z.object({
   id: z.string(),

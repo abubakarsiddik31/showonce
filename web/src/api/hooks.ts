@@ -8,6 +8,8 @@ const POLL_MS = 1200
 export const useHealth = () =>
   useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 15_000, retry: false })
 
+export const useDemos = () => useQuery({ queryKey: ['demos'], queryFn: api.demos })
+
 export const useSamples = () => useQuery({ queryKey: ['samples'], queryFn: api.samples })
 
 const finished = (job: Job | undefined) => job?.status === 'done' || job?.status === 'failed'

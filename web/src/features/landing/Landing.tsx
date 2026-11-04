@@ -1,12 +1,13 @@
 import { ArrowRight } from '@phosphor-icons/react'
 import { MotionConfig } from 'motion/react'
 
-import { useSamples } from '../../api/hooks'
+import { useDemos, useSamples } from '../../api/hooks'
 import { Button } from '../../components/Button'
 import { Logo } from '../../components/Logo'
 import { studioHref } from '../../lib/route'
 import { Capabilities } from './Capabilities'
 import { ClipGallery } from './ClipGallery'
+import { DemoShowcase } from './DemoShowcase'
 import { Hero } from './Hero'
 import { HowItWorks } from './HowItWorks'
 import { Proof } from './Proof'
@@ -15,6 +16,7 @@ const jump = (id: string) =>
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
 const LINKS: Array<[string, string]> = [
+  ['watch', 'Watch it'],
   ['how', 'How it works'],
   ['can', 'What it can do'],
   ['clips', 'Clips'],
@@ -23,6 +25,7 @@ const LINKS: Array<[string, string]> = [
 /** The message, on its own page: what it is, how it works, and a way in. */
 export function Landing({ go }: { go: (href: string) => void }) {
   const samples = useSamples()
+  const demos = useDemos()
   const start = () => go(studioHref())
 
   return (
@@ -59,6 +62,7 @@ export function Landing({ go }: { go: (href: string) => void }) {
 
         <main className="flex-1">
           <Hero onStart={start} onHow={() => jump('how')} />
+          <DemoShowcase demos={demos.data} />
           <HowItWorks />
           <Capabilities />
           <ClipGallery samples={samples.data} loading={samples.isPending} go={go} />
