@@ -26,7 +26,8 @@ STRIP_TAIL = 0.03  # how far the strip sticks out past each side of the bag
 DIRT_SPOTS = 14
 DIRT_RADIUS = 0.012
 PARK_Z = -0.4  # where cut-away bodies wait, each at its own depth below this
-CONTENTS_RGBA = (0.55, 0.42, 0.2, 1.0)  # dry cereal-brown: contents are an abstraction, not a fluid
+CONTENTS_RGBA = (0.96, 0.95, 0.9, 1.0)  # pale dry goods: contents are an abstraction, not a fluid
+BOWL_FLOOR = 0.011  # where a round bowl's contents sit
 POURED_RGB = (0.93, 0.9, 0.8)  # what has just been poured in: pale, unmixed
 MIXED_RGB = (0.9, 0.7, 0.28)  # what a stir blends it into
 TCP_OFFSET = 0.1034  # fingertip center along the hand z axis
@@ -231,7 +232,13 @@ class SimWorld:
                 SimWorld._add_dirt(world, zone.name, (*zone.center, TRAY_FLOOR), half)
             if zone.name in contents or zone.name in pour_targets:
                 half = (zone.size[0] / 2 - RIM_THICKNESS, zone.size[1] / 2 - RIM_THICKNESS)
-                SimWorld._add_contents(world, zone.name, (*zone.center, TRAY_FLOOR), half)
+                floor = BOWL_FLOOR if "bowl" in zone.name.lower() else TRAY_FLOOR
+                half = (
+                    (math.sqrt(zone.size[0] * zone.size[1]) / 2 - 0.012,) * 2
+                    if floor == BOWL_FLOOR
+                    else half
+                )
+                SimWorld._add_contents(world, zone.name, (*zone.center, floor), half)
         spec.body("hand").add_site(
             name="tcp", pos=[0, 0, TCP_OFFSET], size=[0.004, 0.004, 0.004], rgba=[1, 0, 0, 0.3]
         )
@@ -282,7 +289,11 @@ class SimWorld:
         """A floor plus a low rim. They collide with objects only, never with the arm."""
         (cx, cy), (sx, sy) = zone.center, zone.size
         rim_rgba = [min(1.0, c * 1.3) for c in zone.rgba[:3]] + [1.0]
+        round_bowl = "bowl" in zone.name.lower()
         common = {"type": mujoco.mjtGeom.mjGEOM_BOX, "contype": 2, "conaffinity": 0}
+        if round_bowl:
+            SimWorld._add_round_bowl(world, zone)
+            common |= {"group": 3}  # the square tray still holds things, but is not drawn
         world.add_geom(
             name=f"zone_{zone.name}",
             pos=[cx, cy, TRAY_FLOOR / 2],
@@ -307,6 +318,59 @@ class SimWorld:
             )
 
     @staticmethod
+    def _add_round_bowl(world: mujoco.MjsBody, zone: ZoneDef) -> None:
+        """A round white bowl drawn over the square tray that does the holding."""
+        (cx, cy), r = zone.center, math.sqrt(zone.size[0] * zone.size[1]) / 2
+        visual = {"type": mujoco.mjtGeom.mjGEOM_CYLINDER, "contype": 0, "conaffinity": 0}
+        h = BOWL_FLOOR - 0.0015
+        world.add_geom(
+            name=f"zone_{zone.name}_bowl",
+            pos=[cx, cy, h / 2],
+            size=[r, h / 2, 0],
+            rgba=[0.95, 0.95, 0.93, 1.0],
+            **visual,
+        )
+        world.add_geom(
+            name=f"zone_{zone.name}_inside",
+            pos=[cx, cy, h / 2 + 0.0004],
+            size=[r - 0.012, h / 2, 0],
+            rgba=[0.84, 0.83, 0.8, 1.0],
+            **visual,
+        )
+
+    @staticmethod
+    def _add_spoon_geoms(
+        body: mujoco.MjsBody, block: BlockDef, physics: Mapping[str, object]
+    ) -> None:
+        """A spoon: a slim handle and oval bowl over an invisible box that does the touching."""
+        hx, hy, hz = block.shape.half
+        rgb = [min(1.0, c * 1.25) for c in block.rgba[:3]]
+        body.add_geom(
+            name=f"{block.name}_geom",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            size=[hx, hy, hz],
+            rgba=[*rgb, 0.0],
+            **physics,
+        )
+        visual = {"contype": 0, "conaffinity": 0, "mass": 0.001}
+        body.add_geom(
+            name=f"{block.name}_handle",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            pos=[0, -0.25 * hy, 0],
+            size=[0.4 * hx, 0.72 * hy, 0.3 * hz],
+            rgba=[*rgb, 1.0],
+            **visual,
+        )
+        body.add_geom(
+            name=f"{block.name}_bowl",
+            type=mujoco.mjtGeom.mjGEOM_ELLIPSOID,
+            pos=[0, 0.62 * hy, 0.1 * hz],
+            size=[hx, 0.4 * hy, 0.55 * hz],
+            rgba=[*rgb, 1.0],
+            **visual,
+        )
+
+    @staticmethod
     def _add_object_geoms(body: mujoco.MjsBody, block: BlockDef) -> None:
         shape, rgba = block.shape, list(block.rgba)
         hx, hy, hz = shape.half
@@ -323,6 +387,9 @@ class SimWorld:
             return
         if shape.kind == "log":
             SimWorld._add_log_geoms(body, block, physics)
+            return
+        if shape.kind == "box" and "spoon" in block.name.lower():
+            SimWorld._add_spoon_geoms(body, block, physics)
             return
         kind, size = {
             "box": (mujoco.mjtGeom.mjGEOM_BOX, [hx, hy, hz]),
