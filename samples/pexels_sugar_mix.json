@@ -1,0 +1,61 @@
+{
+  "name": "pexels_sugar_mix",
+  "title": "Bake: pour sugar, stir",
+  "group": "Chores",
+  "notes": "Pexels stock footage (real, top-down baking clip, 6138113). Objects are profiled by hand: the spoon is in a hand in the first frame, so its colour cannot be read there.",
+  "size": [
+    1920,
+    1080
+  ],
+  "prompts": {
+    "sugar bowl": "glass bowl of sugar",
+    "silver spoon": "silver spoon"
+  },
+  "container_prompts": {
+    "mixing bowl": "white bowl with egg yolks"
+  },
+  "profiles": {
+    "sugar bowl": {
+      "shape": "cylinder",
+      "width": 0.07,
+      "depth": 0.07,
+      "height": 0.045,
+      "handle": false,
+      "openable": false,
+      "pressable": false,
+      "rgb": [
+        0.35,
+        0.72,
+        0.88
+      ],
+      "texture": null
+    },
+    "silver spoon": {
+      "shape": "box",
+      "width": 0.02,
+      "depth": 0.07,
+      "height": 0.012,
+      "handle": false,
+      "openable": false,
+      "pressable": false,
+      "rgb": [
+        0.55,
+        0.58,
+        0.65
+      ],
+      "texture": null
+    }
+  },
+  "steps": [
+    {
+      "object": "sugar bowl",
+      "action": "pour",
+      "target": "mixing bowl"
+    },
+    {
+      "object": "silver spoon",
+      "action": "stir",
+      "target": "mixing bowl"
+    }
+  ]
+}

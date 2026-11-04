@@ -187,6 +187,15 @@ class SimWorld:
         spec.visual.headlight.ambient = [0.2, 0.2, 0.2]
         spec.visual.headlight.diffuse = [0.15, 0.15, 0.15]
         spec.visual.headlight.specular = [0.0, 0.0, 0.0]
+        spec.add_texture(
+            name="backdrop",
+            type=mujoco.mjtTexture.mjTEXTURE_SKYBOX,
+            builtin=mujoco.mjtBuiltin.mjBUILTIN_GRADIENT,
+            rgb1=[0.62, 0.7, 0.8],  # a studio wall fading from light at the top to slate below
+            rgb2=[0.16, 0.19, 0.25],
+            width=512,
+            height=512,
+        )
         world.add_light(
             pos=[0.4, 0, 1.5],
             dir=[0, 0, -1],
