@@ -2,7 +2,7 @@
   "name": "pexels_fruit_basket",
   "title": "Fruit into a basket",
   "group": "Put and place",
-  "notes": "Pexels stock footage (real, top-down, 5801999). Three lemons and an orange go into the basket. The lemons look alike, so the simulator treats them as interchangeable.",
+  "notes": "Pexels stock footage (real, top-down, 5801999). Three lemons and an orange go into the basket. The lemons look alike, so the simulator treats them as interchangeable. Fruit are profiled by hand: the lemons are alike in colour and the orange is in a hand in the first frame.",
   "size": [
     1920,
     1080
@@ -16,9 +16,56 @@
   "sim_prompts": {
     "lemon 1": "yellow ball",
     "lemon 2": "yellow ball",
-    "lemon 3": "yellow ball"
+    "lemon 3": "yellow ball",
+    "orange": "orange ball"
   },
   "container_prompts": {
     "basket": "woven basket"
+  },
+  "profiles": {
+    "lemon 1": {
+      "shape": "sphere",
+      "width": 0.055,
+      "depth": 0.055,
+      "height": 0.055,
+      "rgb": [
+        0.95,
+        0.82,
+        0.15
+      ]
+    },
+    "lemon 2": {
+      "shape": "sphere",
+      "width": 0.058,
+      "depth": 0.058,
+      "height": 0.058,
+      "rgb": [
+        0.95,
+        0.82,
+        0.15
+      ]
+    },
+    "lemon 3": {
+      "shape": "sphere",
+      "width": 0.055,
+      "depth": 0.055,
+      "height": 0.055,
+      "rgb": [
+        0.95,
+        0.82,
+        0.15
+      ]
+    },
+    "orange": {
+      "shape": "sphere",
+      "width": 0.065,
+      "depth": 0.065,
+      "height": 0.065,
+      "rgb": [
+        0.95,
+        0.5,
+        0.1
+      ]
+    }
   }
 }

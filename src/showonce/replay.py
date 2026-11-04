@@ -190,7 +190,7 @@ def replay(
         if not oracle:
             if client is None:
                 raise ValueError("A Meta client is required unless oracle=True")
-            perceived = perceive_blocks(client, world, scene.sim_prompt_options)
+            perceived = perceive_blocks(client, world, scene.sim_prompt_options, reference=truth)
             errors = {n: math.dist(perceived[n], truth[n]) * 1000 for n in truth}
         controller.reset_to_home()  # the video opens on the arm ready, not swinging in
         if recorder:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+import math
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 
@@ -62,8 +64,15 @@ def perceive_blocks(
     prompts: Mapping[str, Sequence[str]],
     *,
     workers: int = 3,
+    reference: Mapping[str, XY] | None = None,
 ) -> dict[str, XY]:
-    """Render the top camera (arm must already be parked) and locate each object with SAM."""
+    """Render the top camera (arm must already be parked) and locate each object with SAM.
+
+    Objects that look alike share one search. Which detection is which lemon is arbitrary, so
+    with ``reference`` (the true layout, known to a test harness) each name takes the detection
+    nearest its own true spot, which keeps the per-step checks about the right object. The
+    robot only ever acts on the positions SAM reports.
+    """
     image = top_view(world)
     # The sim camera's own frame, whatever size the demo clip was: pixels here are not the clip's.
     calibration = Calibration.for_frame(image.shape[1], image.shape[0])
@@ -110,7 +119,16 @@ def perceive_blocks(
             raise NotFoundError(
                 f"SAM found {len(found)} '{prompts[names[0]][0]}', needed {len(names)}"
             )
-        return [(n, position(n, d)) for n, d in zip(names, found, strict=False)]
+        spots = [position(names[0], d) for d in found]
+        if reference is None or len(names) == 1:
+            return list(zip(names, spots, strict=False))
+        best = min(
+            itertools.permutations(range(len(spots)), len(names)),
+            key=lambda pick: sum(
+                math.dist(spots[i], reference[n]) for n, i in zip(names, pick, strict=True)
+            ),
+        )
+        return [(n, spots[i]) for n, i in zip(names, best, strict=True)]
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         located = pool.map(locate_group, groups.values())

@@ -2,7 +2,25 @@
   "name": "pexels_fruit_basket",
   "steps": [
     {
-      "object": "lemon",
+      "object": "lemon 2",
+      "action": "place_in",
+      "target": "basket",
+      "relation": null
+    },
+    {
+      "object": "orange",
+      "action": "place_in",
+      "target": "basket",
+      "relation": null
+    },
+    {
+      "object": "lemon 3",
+      "action": "place_in",
+      "target": "basket",
+      "relation": null
+    },
+    {
+      "object": "lemon 1",
       "action": "place_in",
       "target": "basket",
       "relation": null

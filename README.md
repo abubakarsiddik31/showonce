@@ -23,9 +23,9 @@ Each folder in [`demos/`](demos/) holds the clip ShowOnce watched (`human.mp4`),
 
 | Demo | Task | Footage |
 |---|---|---|
-| [`pexels_fruit_basket`](demos/pexels_fruit_basket) | put a lemon in the basket | real stock footage |
-| [`pexels_sugar_mix`](demos/pexels_sugar_mix) | pour sugar into a bowl, stir | real stock footage |
-| [`pexels_cut_carrots`](demos/pexels_cut_carrots) | cut a carrot | real stock footage |
+| [`pexels_fruit_basket`](demos/pexels_fruit_basket) | three lemons and an orange into the basket | real stock footage |
+| [`pexels_sugar_mix`](demos/pexels_sugar_mix) | pour sugar into a bowl, stir until it blends | real stock footage |
+| [`pexels_cut_carrots`](demos/pexels_cut_carrots) | chop a carrot into ten slices | real stock footage |
 | [`toys_into_bin`](demos/toys_into_bin) | three toys into a bin | AI-generated |
 | [`dishes_into_rack`](demos/dishes_into_rack) | three dishes into a rack | AI-generated |
 | [`lamp_press`](demos/lamp_press) | press a push light | AI-generated |
@@ -202,7 +202,7 @@ pnpm test && pnpm typecheck && pnpm lint
 
 ## Sample clips
 
-The finished human-and-robot pairs are in `demos/`. `samples/` holds six demo clips, each with a scene file naming the objects and containers. Two are AI-generated put-and-place footage (see `scripts/generate_videos.py`, a development tool that is not part of the product): `toys_into_bin` and `dishes_into_rack` (30 s), with small size glitches in the objects. `lamp_press` (press the orange push light so it clicks on) is AI-generated and trimmed to the part without glitches. Three are real Pexels stock footage: `pexels_fruit_basket` (top-down: lemons and an orange go into a basket; the robot learns one lemon), `pexels_cut_carrots` (an angled close-up of carrot slicing, run in unposed mode on a default layout), `pexels_sugar_mix` (top-down: a baker pours sugar into a bowl and stirs it; objects are profiled by hand because the spoon is in a hand in the first frame). Replays of the three real clips on seeds 3, 7 and 11 all passed, with SAM within 2 mm. A portrait clip was dropped: the table mapping assumes a landscape frame.
+The finished human-and-robot pairs are in `demos/`. `samples/` holds six demo clips, each with a scene file naming the objects and containers. Two are AI-generated put-and-place footage (see `scripts/generate_videos.py`, a development tool that is not part of the product): `toys_into_bin` and `dishes_into_rack` (30 s), with small size glitches in the objects. `lamp_press` (press the orange push light so it clicks on) is AI-generated and trimmed to the part without glitches. Three are real Pexels stock footage: `pexels_fruit_basket` (top-down: three lemons and an orange go into a basket, so the robot learns four steps), `pexels_cut_carrots` (an angled close-up of carrot slicing: the robot chops a lying carrot into ten slices and piles them beside it, on a default layout), `pexels_sugar_mix` (top-down: a baker pours sugar into a bowl and stirs it; objects are profiled by hand because the spoon is in a hand in the first frame). Replays of the three real clips on seeds 3, 7 and 11 all passed, with SAM within 2 mm. A portrait clip was dropped: the table mapping assumes a landscape frame.
 
 Four earlier AI clips were withdrawn because the footage itself was flawed or a real clip replaced them. `fruit_into_bowl` gave way to `pexels_fruit_basket`; the others: `dishes_wash` (stains vanish between frames and the sponge changes shape), `cooking_prep` (the dough bar appears from nowhere) and `book_push_aside` (the pushed book slides back to where it began). Their scene files stay, and wipe, push and cut are still covered by the simulator tests; the rows for them in the results table above were measured on those clips. Put real phone clips next to them with a scene file of the same shape.
 

@@ -28,6 +28,7 @@ def test_everything_lands_inside_arm_reach() -> None:
 
 
 def test_same_seed_gives_the_same_table() -> None:
-    assert unposed_layout(prog(), {}, ["bowl"], seed=3).objects == unposed_layout(
-        prog(), {}, ["bowl"], seed=3
-    ).objects
+    assert (
+        unposed_layout(prog(), {}, ["bowl"], seed=3).objects
+        == unposed_layout(prog(), {}, ["bowl"], seed=3).objects
+    )

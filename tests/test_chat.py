@@ -374,9 +374,7 @@ class _CannedClient:
     def __init__(self, text: str) -> None:
         self._text = text
 
-    def chat(
-        self, objects: object, containers: object, plan: object, conversation: object
-    ) -> dict:
+    def chat(self, objects: object, containers: object, plan: object, conversation: object) -> dict:
         return {"text": self._text}
 
 
