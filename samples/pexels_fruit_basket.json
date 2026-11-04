@@ -1,0 +1,10 @@
+{
+  "name": "pexels_fruit_basket",
+  "title": "Fruit into a basket",
+  "group": "Put and place",
+  "notes": "Pexels stock footage (real, top-down, 5801999).",
+  "size": [1920, 1080],
+  "prompts": {"lemon": "yellow lemon on the cloth"},
+  "container_prompts": {"basket": "woven basket"},
+  "steps": [{"object": "lemon", "action": "place_in", "target": "basket"}]
+}
